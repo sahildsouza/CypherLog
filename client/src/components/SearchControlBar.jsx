@@ -122,22 +122,8 @@ export default function SearchControlBar({
             ))}
           </div>
 
-          {/* Right Action Buttons: Stream & Rules */}
+          {/* Right Action Buttons: Rules */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Live Streaming Mode Toggle */}
-            <button
-              onClick={() => setIsLiveStreaming(!isLiveStreaming)}
-              title="Live Stream Search: Stream matching lines progressively in real-time"
-              className={`px-2.5 sm:px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 font-bold text-[11px] cursor-pointer ${
-                isLiveStreaming
-                  ? 'bg-amber-500/20 border-amber-500/70 text-amber-300 shadow-glow-amber'
-                  : 'bg-cyber-850 hover:bg-cyber-800 border-cyber-border text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Stream</span>
-            </button>
-
             {/* Custom Rules Builder Trigger */}
             <button
               onClick={onOpenRules}

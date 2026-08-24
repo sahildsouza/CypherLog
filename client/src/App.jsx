@@ -26,7 +26,7 @@ export default function App() {
   // Search State
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [isLiveStreaming, setIsLiveStreaming] = useState(false);
+  const [isLiveStreaming, setIsLiveStreaming] = useState(true); // Stream by default
   const [isRegex, setIsRegex] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [invertMatch, setInvertMatch] = useState(false);
@@ -53,7 +53,7 @@ export default function App() {
   const [metrics, setMetrics] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [isDeduplicated, setIsDeduplicated] = useState(false);
-  const [maskPasswords, setMaskPasswords] = useState(true);
+  const [maskPasswords, setMaskPasswords] = useState(false); // Visible by default
   const [hasSearched, setHasSearched] = useState(false);
 
   // View & UI State

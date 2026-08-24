@@ -3,7 +3,7 @@ import { Copy, Check, Eye, EyeOff, ExternalLink, ShieldAlert, Key, Globe, FileTe
 
 export default function TableView({
   results = [],
-  maskPasswords = true,
+  maskPasswords = false,
   hasSearched = false,
   onInspectContext
 }) {
@@ -149,7 +149,8 @@ export default function TableView({
                           href={row.url} 
                           target="_blank" 
                           rel="noopener noreferrer" 
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-300 transition-opacity shrink-0"
+                          className="p-0.5 text-slate-500 hover:text-cyan-300 transition-colors shrink-0"
+                          title="Open URL in new tab"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
@@ -167,13 +168,15 @@ export default function TableView({
                       >
                         {row.username || '<empty>'}
                       </span>
-                      <button
-                        onClick={() => handleCopy(row.username, globalIdx, 'user')}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-cyan-300 transition-opacity shrink-0"
-                        title="Copy Username"
-                      >
-                        {copiedIndex === `${globalIdx}-user` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      </button>
+                      {row.username && (
+                        <button
+                          onClick={() => handleCopy(row.username, globalIdx, 'user')}
+                          className="p-1 rounded hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 transition-colors shrink-0 cursor-pointer"
+                          title="Copy Username / Email"
+                        >
+                          {copiedIndex === `${globalIdx}-user` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
                     </div>
                   </td>
 
@@ -200,18 +203,18 @@ export default function TableView({
                       {displaySecret && (
                         <button
                           onClick={() => toggleRowReveal(globalIdx)}
-                          className="text-slate-500 hover:text-slate-300 p-0.5 shrink-0"
+                          className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-cyber-800 transition-colors shrink-0 cursor-pointer"
                           title={isPasswordRevealed ? 'Hide Password' : 'Show Password'}
                         >
-                          {isPasswordRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          {isPasswordRevealed ? <EyeOff className="w-3 h-3 text-cyan-400" /> : <Eye className="w-3 h-3" />}
                         </button>
                       )}
 
                       {displaySecret && (
                         <button
                           onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-cyan-300 transition-opacity shrink-0"
-                          title="Copy Password"
+                          className="p-1 rounded hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 transition-colors shrink-0 cursor-pointer"
+                          title="Copy Password / Secret"
                         >
                           {copiedIndex === `${globalIdx}-pass` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                         </button>
