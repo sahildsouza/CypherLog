@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url';
 import { getBaseLogDir, setBaseLogDir, validateSafePath } from './utils/pathSecurity.js';
 import { executeSearch, streamSearch, getContextLines } from './utils/searchEngine.js';
 import { testParserRule } from './utils/logParser.js';
-import { seedSampleLogs } from './utils/sampleDataSeeder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,14 +16,6 @@ const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-
-// Initialize base logs directory and seed initial dataset
-try {
-  const currentBase = getBaseLogDir();
-  seedSampleLogs(currentBase);
-} catch (err) {
-  console.error('[Server Init] Error initializing log dir:', err);
-}
 
 /**
  * Format bytes into human readable format
@@ -385,20 +376,7 @@ app.post('/api/config/dir', (req, res) => {
   }
 });
 
-/**
- * 6. Reseed Sample Datasets Endpoint
- */
-app.post('/api/seed', (req, res) => {
-  try {
-    const baseDir = getBaseLogDir();
-    seedSampleLogs(baseDir);
-    res.json({ success: true, message: 'Sample log files reseeded successfully', baseDir });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// 7. Single-Command Unified Server: Serve React SPA if dist exists
+// 6. Single-Command Unified Server: Serve React SPA if dist exists
 const clientDistPath = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));

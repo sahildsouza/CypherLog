@@ -9,7 +9,6 @@ export default function Header({
   selectedCount = 0,
   onRefreshFiles,
   onOpenConfig,
-  onReseed,
   onToggleMobileSidebar,
   isSearching,
   engineType = 'ripgrep'
@@ -95,16 +94,6 @@ export default function Header({
             className="md:hidden flex items-center justify-center p-2 rounded-lg bg-cyber-850 hover:bg-cyber-800 text-slate-300 border border-cyber-border transition-colors text-xs"
           >
             <Sliders className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Reseed Sample Data */}
-          <button
-            onClick={onReseed}
-            title="Reseed sample test log files"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-white border border-cyber-border text-xs font-mono transition-all"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>Reseed</span>
           </button>
 
           {/* Refresh Files Button */}

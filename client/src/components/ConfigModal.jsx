@@ -5,8 +5,7 @@ export default function ConfigModal({
   isOpen,
   onClose,
   currentDir,
-  onUpdateDir,
-  onReseedLogs
+  onUpdateDir
 }) {
   const [newPath, setNewPath] = useState(currentDir || '');
   const [statusMsg, setStatusMsg] = useState(null);
@@ -125,10 +124,8 @@ export default function ConfigModal({
             </div>
           )}
 
-          {/* Footer Actions: Clean 2-Tier Mobile & Desktop Layout */}
-          <div className="pt-3 border-t border-cyber-border space-y-2">
-            
-            {/* Primary Action Buttons */}
+          {/* Footer Actions */}
+          <div className="pt-3 border-t border-cyber-border">
             <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2">
               <button
                 type="button"
@@ -145,23 +142,6 @@ export default function ConfigModal({
                 {isUpdating ? 'Saving...' : 'Save & Rescan'}
               </button>
             </div>
-
-            {/* Utility: Reseed Logs Button */}
-            <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Need test logs?</span>
-              <button
-                type="button"
-                onClick={() => {
-                  onReseedLogs();
-                  onClose();
-                }}
-                className="flex items-center gap-1 text-amber-300 hover:text-amber-200 underline underline-offset-2 transition-colors cursor-pointer"
-              >
-                <Zap className="w-3 h-3" />
-                <span>Reseed Sample Logs</span>
-              </button>
-            </div>
-
           </div>
 
         </form>

@@ -249,19 +249,6 @@ export default function App() {
     setIsContextDrawerOpen(true);
   };
 
-  const handleReseedLogs = async () => {
-    try {
-      const res = await fetch('/api/seed', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        await fetchFiles();
-        handleExecuteSearch();
-      }
-    } catch (err) {
-      console.error('Failed to reseed logs:', err);
-    }
-  };
-
   const handleApplyDomainFilter = (domain) => {
     setQuery(domain);
     setTargetField('URL');
@@ -283,7 +270,6 @@ export default function App() {
         selectedCount={selectedFiles.length}
         onRefreshFiles={fetchFiles}
         onOpenConfig={() => setIsConfigModalOpen(true)}
-        onReseed={handleReseedLogs}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         isSearching={isSearching || isLoadingFiles}
       />
@@ -406,7 +392,6 @@ export default function App() {
           setBaseDir(newDir);
           fetchFiles();
         }}
-        onReseedLogs={handleReseedLogs}
       />
 
     </div>
