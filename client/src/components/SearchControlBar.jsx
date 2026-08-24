@@ -183,23 +183,25 @@ export default function SearchControlBar({
           </div>
 
           {/* Search Activity Status Readout */}
-          <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 bg-cyber-950/90 border-t border-cyber-border/60 text-[11px] font-mono text-cyan-300">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
+          <div className="flex items-center justify-between gap-2 px-2.5 sm:px-4 py-1.5 bg-cyber-950/90 border-t border-cyber-border/60 text-[10px] sm:text-[11px] font-mono text-cyan-300 whitespace-nowrap overflow-hidden">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 truncate">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
-              <span className="font-semibold text-slate-200">
-                Streaming matching records in real-time...
+              <span className="font-semibold text-slate-200 truncate">
+                <span className="sm:hidden">Streaming records...</span>
+                <span className="hidden sm:inline">Streaming matching records in real-time...</span>
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {streamMatchCount > 0 && (
-                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold">
-                  {streamMatchCount.toLocaleString()} matches streamed
+                <span className="px-1.5 sm:px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold whitespace-nowrap shrink-0">
+                  <span className="sm:hidden">{streamMatchCount.toLocaleString()} streamed</span>
+                  <span className="hidden sm:inline">{streamMatchCount.toLocaleString()} matches streamed</span>
                 </span>
               )}
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider hidden sm:inline">Searching...</span>
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider hidden md:inline">Searching...</span>
             </div>
           </div>
         </div>
