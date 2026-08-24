@@ -307,21 +307,14 @@ export default function App() {
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-cyber-950">
           
           {/* Query Execution Controls */}
+          {/* Query Execution Controls */}
           <SearchControlBar
             query={query}
             setQuery={setQuery}
             onExecuteSearch={handleExecuteSearch}
             isSearching={isSearching}
-            isRegex={isRegex}
-            setIsRegex={setIsRegex}
-            caseSensitive={caseSensitive}
-            setCaseSensitive={setCaseSensitive}
-            invertMatch={invertMatch}
-            setInvertMatch={setInvertMatch}
             targetField={targetField}
             setTargetField={setTargetField}
-            autoSearch={autoSearch}
-            setAutoSearch={setAutoSearch}
             isLiveStreaming={isLiveStreaming}
             setIsLiveStreaming={setIsLiveStreaming}
             onOpenRules={() => setIsRulesModalOpen(true)}
