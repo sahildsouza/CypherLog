@@ -58,10 +58,43 @@ export default function App() {
   // View & UI State
   const [activeTab, setActiveTab] = useState('TABLE'); // 'TABLE' | 'RAW' | 'ANALYTICS'
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('cipherlog_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [inspectTarget, setInspectTarget] = useState(null);
   const [isContextDrawerOpen, setIsContextDrawerOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+
+  const handleToggleSidebar = useCallback(() => {
+    if (window.innerWidth < 1024) {
+      setIsMobileSidebarOpen(prev => !prev);
+    } else {
+      setIsSidebarCollapsed(prev => {
+        const next = !prev;
+        try {
+          localStorage.setItem('cipherlog_sidebar_collapsed', String(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, []);
+
+  // Global Ctrl+B / Cmd+B shortcut to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        handleToggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleToggleSidebar]);
 
   // 1. Fetch Discovered Files
   const fetchFiles = useCallback(async () => {
@@ -269,7 +302,8 @@ export default function App() {
         selectedCount={selectedFiles.length}
         onRefreshFiles={fetchFiles}
         onOpenConfig={() => setIsConfigModalOpen(true)}
-        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        onToggleSidebar={handleToggleSidebar}
+        isSidebarCollapsed={isSidebarCollapsed}
         isSearching={isSearching || isLoadingFiles}
       />
 
@@ -286,6 +320,8 @@ export default function App() {
           isLoading={isLoadingFiles}
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          isDesktopCollapsed={isSidebarCollapsed}
+          onToggleDesktopCollapse={handleToggleSidebar}
         />
 
         {/* Right Dashboard Area */}

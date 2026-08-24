@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, FolderTree, RefreshCw, Sliders, Database, Zap, Cpu, Menu, Layers } from 'lucide-react';
+import { Shield, FolderTree, RefreshCw, Sliders, Database, Cpu, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
 
 export default function Header({
   baseDir,
@@ -9,7 +9,8 @@ export default function Header({
   selectedCount = 0,
   onRefreshFiles,
   onOpenConfig,
-  onToggleMobileSidebar,
+  onToggleSidebar,
+  isSidebarCollapsed = false,
   isSearching,
   engineType = 'ripgrep'
 }) {
@@ -17,15 +18,19 @@ export default function Header({
     <header className="border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 sticky top-0 z-30 transition-all shadow-lg">
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         
-        {/* Left: Mobile Menu Button + Brand Logo & Title */}
+        {/* Left: Scope Sidebar Toggle Button + Brand Logo & Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Mobile Scope / Sidebar Drawer Button */}
+          {/* Scope / Sidebar Toggle Button (Mobile drawer / Desktop collapse) */}
           <button
-            onClick={onToggleMobileSidebar}
-            title="Open Log Files Explorer"
-            className="lg:hidden flex items-center justify-center p-2 rounded-xl bg-cyber-850 hover:bg-cyber-800 text-cyan-400 border border-cyber-accent/30 shadow-glow-cyan shrink-0 transition-colors"
+            onClick={onToggleSidebar}
+            title={isSidebarCollapsed ? "Open Scope & Log Files (Ctrl+B)" : "Collapse Scope & Log Files (Ctrl+B)"}
+            className="flex items-center justify-center p-2 rounded-xl bg-cyber-850 hover:bg-cyber-800 text-cyan-400 border border-cyber-accent/30 shadow-glow-cyan shrink-0 transition-colors cursor-pointer"
           >
-            <Menu className="w-4 h-4" />
+            {isSidebarCollapsed ? (
+              <PanelLeft className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
           </button>
 
           <div className="relative flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-600/20 border border-cyber-accent/40 shadow-glow-cyan shrink-0">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   FileText, Folder, FolderOpen, CheckSquare, Square, Search, Layers, 
-  ChevronRight, ChevronDown, HardDrive, Eye, AlertCircle, X, Check, RotateCcw
+  ChevronRight, ChevronDown, HardDrive, Eye, AlertCircle, X, Check, RotateCcw, PanelLeftClose, PanelLeft
 } from 'lucide-react';
 
 export default function FileExplorerSidebar({
@@ -13,7 +13,9 @@ export default function FileExplorerSidebar({
   onQuickInspectFile,
   isLoading,
   isMobileOpen = false,
-  onCloseMobile
+  onCloseMobile,
+  isDesktopCollapsed = false,
+  onToggleDesktopCollapse
 }) {
   const [filterQuery, setFilterQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({ root: true });
@@ -78,6 +80,14 @@ export default function FileExplorerSidebar({
             <span className="text-[10px] px-2 py-0.5 rounded-md bg-cyber-950 text-slate-400 border border-cyber-border/80 font-semibold">
               {files.length} {files.length === 1 ? 'file' : 'files'}
             </span>
+            {/* Desktop Collapse Button */}
+            <button
+              onClick={onToggleDesktopCollapse}
+              className="hidden lg:flex p-1 rounded-lg hover:bg-cyber-750 text-slate-400 hover:text-slate-200 transition-colors"
+              title="Collapse Sidebar (Ctrl+B)"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
             {/* Mobile Drawer Close */}
             <button
               onClick={onCloseMobile}
@@ -278,9 +288,15 @@ export default function FileExplorerSidebar({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex lg:w-84 xl:w-90 flex-col border-r border-cyber-border bg-cyber-900/60 shrink-0 h-full max-h-[calc(100vh-65px)] overflow-hidden">
-        {sidebarContent}
+      {/* Desktop Collapsible Sidebar */}
+      <aside className={`hidden lg:flex flex-col border-cyber-border bg-cyber-900/60 shrink-0 h-full max-h-[calc(100vh-65px)] overflow-hidden transition-all duration-300 ease-in-out ${
+        isDesktopCollapsed 
+          ? 'lg:w-0 border-r-0 opacity-0 pointer-events-none' 
+          : 'lg:w-84 xl:w-90 border-r opacity-100'
+      }`}>
+        <div className="w-84 xl:w-90 h-full flex flex-col">
+          {sidebarContent}
+        </div>
       </aside>
 
       {/* Mobile Slide-in Drawer with Backdrop */}
