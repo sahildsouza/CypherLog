@@ -1,11 +1,52 @@
-import { rgPath } from '@vscode/ripgrep';
+import { createRequire } from 'module';
 import { execFile, spawn } from 'child_process';
 import fs from 'fs';
 import readline from 'readline';
 import path from 'path';
 import { parseLogLine, parseMultiLineStealerBlocks } from './logParser.js';
 
-export { rgPath };
+const require = createRequire(import.meta.url);
+
+let cachedRgBinary = null;
+
+/**
+ * Safely locate the best available ripgrep binary across Android/Termux, Windows, Linux, and macOS
+ */
+export function getRipgrepBinary() {
+  if (cachedRgBinary) return cachedRgBinary;
+
+  // 1. Explicit override via environment variable
+  if (process.env.RG_PATH) {
+    cachedRgBinary = process.env.RG_PATH;
+    return cachedRgBinary;
+  }
+
+  // 2. Android / Termux environment check (pkg install ripgrep)
+  if (process.platform === 'android') {
+    const termuxRg = '/data/data/com.termux/files/usr/bin/rg';
+    if (fs.existsSync(termuxRg)) {
+      cachedRgBinary = termuxRg;
+      return cachedRgBinary;
+    }
+    cachedRgBinary = 'rg';
+    return cachedRgBinary;
+  }
+
+  // 3. Desktop / Server OS prebuilt package check
+  try {
+    const vscodeRg = require('@vscode/ripgrep');
+    if (vscodeRg?.rgPath && fs.existsSync(vscodeRg.rgPath)) {
+      cachedRgBinary = vscodeRg.rgPath;
+      return cachedRgBinary;
+    }
+  } catch {
+    // Package not installed or platform has no prebuilt binary (e.g., Android/Termux)
+  }
+
+  // 4. Default to system PATH
+  cachedRgBinary = 'rg';
+  return cachedRgBinary;
+}
 
 /**
  * Execute high-speed search across single or multiple files using ripgrep or stream engine
@@ -49,7 +90,7 @@ export async function executeSearch({
       maxResults
     });
   } catch (rgError) {
-    console.warn('[SearchEngine] Ripgrep failed or unavailable, using fast stream fallback:', rgError.message);
+    // Fallback to ultra-fast pure Node streaming search (guaranteed on all platforms including Termux)
     rawMatches = await runStreamingSearch({
       query,
       targetFiles,
@@ -102,7 +143,6 @@ export async function executeSearch({
   // Deduplication analysis
   const uniqueKeyMap = new Map();
   for (const item of parsedResults) {
-    // Unique key combination: username + password + domain (or raw line if no user/pass)
     const key = item.username && item.password 
       ? `${item.domain}::${item.username}::${item.password}`
       : `${item.filePath}::${item.lineNumber}::${item.raw}`;
@@ -182,14 +222,29 @@ export function streamSearch({
   try {
     child = spawn(bin, args, { windowsHide: true });
   } catch (err) {
-    if (onError) onError(err);
+    // Fallback to pure Node.js streaming search
+    runNodeStreamingFallback({
+      query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
+      maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
+    });
     return;
   }
+
+  let spawnedFailed = false;
+  child.on('error', (err) => {
+    spawnedFailed = true;
+    clearInterval(flushInterval);
+    // If spawning failed (e.g. rg not found in PATH on Termux), fallback seamlessly
+    runNodeStreamingFallback({
+      query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
+      maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
+    });
+  });
 
   if (abortSignal) {
     abortSignal.addEventListener('abort', () => {
       try {
-        child.kill();
+        child?.kill();
       } catch {}
     });
   }
@@ -282,6 +337,7 @@ export function streamSearch({
   });
 
   child.on('close', () => {
+    if (spawnedFailed) return;
     clearInterval(flushInterval);
     flushChunk();
 
@@ -309,19 +365,145 @@ export function streamSearch({
       });
     }
   });
-
-  child.on('error', (err) => {
-    clearInterval(flushInterval);
-    if (onError) onError(err);
-  });
 }
 
-function getRipgrepBinary() {
-  if (process.env.RG_PATH) return process.env.RG_PATH;
+/**
+ * Pure Node.js streaming fallback when ripgrep binary is unavailable
+ */
+async function runNodeStreamingFallback({
+  query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch,
+  maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
+}) {
   try {
-    if (rgPath && fs.existsSync(rgPath)) return rgPath;
-  } catch {}
-  return 'rg'; // Fallback to system PATH (e.g. `pkg install ripgrep` on Termux)
+    let filesToScan = targetFiles;
+    if (!filesToScan || filesToScan.length === 0) {
+      // Find files recursively
+      const findTxtFiles = (dir) => {
+        let results = [];
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) results = results.concat(findTxtFiles(full));
+            else if (entry.isFile() && entry.name.toLowerCase().endsWith('.txt')) results.push(full);
+          }
+        } catch {}
+        return results;
+      };
+      filesToScan = findTxtFiles(baseDir);
+    }
+
+    let matchCount = 0;
+    let chunkBuffer = [];
+    const domainCounts = {};
+    const fileDistribution = {};
+    const uniqueKeyMap = new Map();
+
+    const flushChunk = () => {
+      if (chunkBuffer.length > 0) {
+        if (onChunk) onChunk([...chunkBuffer]);
+        chunkBuffer = [];
+      }
+    };
+
+    let regex = null;
+    if (isRegex) regex = new RegExp(query, caseSensitive ? 'm' : 'im');
+    const queryCompare = caseSensitive ? query : query.toLowerCase();
+
+    for (const filePath of filesToScan) {
+      if (abortSignal?.aborted) break;
+      if (!fs.existsSync(filePath)) continue;
+
+      const relFile = baseDir 
+        ? path.relative(baseDir, filePath).replace(/\\/g, '/')
+        : path.basename(filePath);
+
+      const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
+      const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+      let lineNum = 0;
+      for await (const line of rl) {
+        if (abortSignal?.aborted) {
+          rl.close();
+          fileStream.destroy();
+          break;
+        }
+        lineNum++;
+        let isMatch = false;
+
+        if (isRegex) {
+          isMatch = regex.test(line);
+        } else {
+          const lineCompare = caseSensitive ? line : line.toLowerCase();
+          isMatch = lineCompare.includes(queryCompare);
+        }
+
+        if (invertMatch) isMatch = !isMatch;
+
+        if (isMatch) {
+          const parsed = parseLogLine(line, lineNum, relFile, customRules);
+          if (!parsed) continue;
+
+          if (targetField !== 'ALL') {
+            const q = caseSensitive ? query : query.toLowerCase();
+            let matchField = false;
+            if (targetField === 'URL' && (caseSensitive ? parsed.url : parsed.url.toLowerCase()).includes(q)) matchField = true;
+            if (targetField === 'USER' && (caseSensitive ? parsed.username : parsed.username.toLowerCase()).includes(q)) matchField = true;
+            if (targetField === 'PASS' && (caseSensitive ? parsed.password : parsed.password.toLowerCase()).includes(q)) matchField = true;
+            if (!matchField) continue;
+          }
+
+          matchCount++;
+          chunkBuffer.push(parsed);
+
+          const domain = parsed.domain || 'Other';
+          domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+          fileDistribution[relFile] = (fileDistribution[relFile] || 0) + 1;
+
+          const key = parsed.username && parsed.password 
+            ? `${parsed.domain}::${parsed.username}::${parsed.password}`
+            : `${parsed.filePath}::${parsed.lineNumber}::${parsed.raw}`;
+          if (!uniqueKeyMap.has(key)) uniqueKeyMap.set(key, true);
+
+          if (chunkBuffer.length >= 50) flushChunk();
+          if (matchCount >= maxResults) {
+            rl.close();
+            fileStream.destroy();
+            break;
+          }
+        }
+      }
+      if (matchCount >= maxResults) break;
+    }
+
+    flushChunk();
+
+    const endTime = process.hrtime.bigint();
+    const executionTimeMs = Number(endTime - startTime) / 1_000_000;
+
+    if (onDone) {
+      onDone({
+        metrics: {
+          executionTimeMs: Math.round(executionTimeMs * 100) / 100,
+          totalMatches: matchCount,
+          uniqueMatches: uniqueKeyMap.size,
+          filesScanned: filesToScan.length
+        },
+        analytics: {
+          topDomains: Object.entries(domainCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([domain, count]) => ({ domain, count })),
+          fileDistribution: Object.entries(fileDistribution)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([file, count]) => ({ file, count }))
+        }
+      });
+    }
+  } catch (err) {
+    if (onError) onError(err);
+  }
 }
 
 /**
@@ -382,10 +564,10 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
           }
         }
 
-        const secondColon = rest.indexOf(':');
         let lineNumber = 1;
         let lineContent = rest;
 
+        const secondColon = rest.indexOf(':');
         if (secondColon !== -1) {
           const numStr = rest.slice(0, secondColon);
           const parsedNum = parseInt(numStr, 10);
@@ -480,25 +662,25 @@ export async function getContextLines(filePath, lineNumber, radius = 5) {
     throw new Error('File not found');
   }
 
-  const startLine = Math.max(1, lineNumber - radius);
-  const endLine = lineNumber + radius;
+  const targetLine = parseInt(lineNumber, 10);
+  const start = Math.max(1, targetLine - radius);
+  const end = targetLine + radius;
 
+  const lines = [];
   const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
-  let currentLine = 0;
-  const contextLines = [];
-
+  let current = 0;
   for await (const line of rl) {
-    currentLine++;
-    if (currentLine >= startLine && currentLine <= endLine) {
-      contextLines.push({
-        lineNumber: currentLine,
-        isTarget: currentLine === lineNumber,
-        content: line
+    current++;
+    if (current >= start && current <= end) {
+      lines.push({
+        lineNumber: current,
+        content: line,
+        isTarget: current === targetLine
       });
     }
-    if (currentLine > endLine) {
+    if (current > end) {
       rl.close();
       fileStream.destroy();
       break;
@@ -507,9 +689,9 @@ export async function getContextLines(filePath, lineNumber, radius = 5) {
 
   return {
     filePath,
-    targetLine: lineNumber,
-    startLine,
-    endLine: currentLine,
-    lines: contextLines
+    targetLine,
+    startLine: start,
+    endLine: Math.min(current, end),
+    lines
   };
 }

@@ -9,8 +9,10 @@
     "test": "node test/security.test.js"
   },
   "dependencies": {
-    "@vscode/ripgrep": "^1.15.9",
     "cors": "^2.8.5",
     "express": "^4.21.2"
+  },
+  "optionalDependencies": {
+    "@vscode/ripgrep": "^1.15.9"
   }
 }
