@@ -3,12 +3,9 @@ import path from 'path';
 import { getBaseLogDir, validateSafePath, setBaseLogDir } from '../utils/pathSecurity.js';
 import { parseLogLine, evaluatePasswordStrength, extractDomain } from '../utils/logParser.js';
 import { executeSearch, getContextLines } from '../utils/searchEngine.js';
-import { seedSampleLogs } from '../utils/sampleDataSeeder.js';
-
 console.log('=== Running Security & Performance Tests ===');
 
 const base = getBaseLogDir();
-seedSampleLogs(base);
 
 // 1. Directory Traversal Security Tests
 console.log('\n[Test 1] Directory Traversal Security Verification');

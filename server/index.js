@@ -30,35 +30,38 @@ function formatBytes(bytes, decimals = 2) {
 }
 
 /**
- * Quick line count estimation or exact read
+ * Ultra-fast line count scanner via raw buffer chunk analysis
  */
-async function countFileLines(filePath, maxBytesToCheck = 50 * 1024 * 1024) {
+function countFileLines(filePath, maxBytesToCheck = 10 * 1024 * 1024) {
   try {
     const stat = fs.statSync(filePath);
     if (stat.size === 0) return 0;
-    
-    // For smaller files, count exactly
-    if (stat.size <= maxBytesToCheck) {
-      let count = 0;
-      const rl = readline.createInterface({
-        input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-        crlfDelay: Infinity
-      });
-      for await (const _ of rl) {
-        count++;
-      }
-      return count;
+    if (stat.size > maxBytesToCheck) {
+      return Math.round(stat.size / 60);
     }
-    
-    // Estimate for extremely large files
-    return Math.round(stat.size / 60);
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let count = 0;
+    let bytesRead = 0;
+    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      for (let i = 0; i < bytesRead; i++) {
+        if (buffer[i] === 10) count++;
+      }
+    }
+    fs.closeSync(fd);
+    return count || 1;
   } catch {
     return 0;
   }
 }
 
+// In-memory discovery cache
+let cachedFilesData = null;
+let lastDiscoveryTime = 0;
+const DISCOVERY_CACHE_TTL = 3000; // 3 seconds
+
 /**
- * Recursively scan directory for .txt and .log files
+ * Recursively scan directory for .txt, .log, and .csv files
  */
 async function scanDirectory(dirPath, baseDir) {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -73,7 +76,7 @@ async function scanDirectory(dirPath, baseDir) {
     } else if (entry.isFile() && (entry.name.endsWith('.txt') || entry.name.endsWith('.log') || entry.name.endsWith('.csv'))) {
       const stat = fs.statSync(fullPath);
       const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
-      const lines = await countFileLines(fullPath);
+      const lines = countFileLines(fullPath);
 
       files.push({
         name: entry.name,
@@ -100,12 +103,17 @@ app.get('/api/files', async (req, res) => {
       fs.mkdirSync(baseDir, { recursive: true });
     }
 
+    const now = Date.now();
+    if (cachedFilesData && cachedFilesData.baseDir === baseDir && (now - lastDiscoveryTime < DISCOVERY_CACHE_TTL)) {
+      return res.json(cachedFilesData);
+    }
+
     const files = await scanDirectory(baseDir, baseDir);
     
     const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
     const totalLines = files.reduce((acc, f) => acc + f.lines, 0);
 
-    res.json({
+    cachedFilesData = {
       success: true,
       baseDir,
       totalFiles: files.length,
@@ -113,7 +121,10 @@ app.get('/api/files', async (req, res) => {
       formattedTotalSize: formatBytes(totalBytes),
       totalLines,
       files
-    });
+    };
+    lastDiscoveryTime = now;
+
+    res.json(cachedFilesData);
   } catch (error) {
     console.error('[API /files] Error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -147,11 +158,9 @@ app.post('/api/search', async (req, res) => {
           safeTargetPaths.push(safePath);
         }
       }
-    } else {
-      // Global search across all available .txt and .log files
-      const allFiles = await scanDirectory(baseDir, baseDir);
-      safeTargetPaths = allFiles.map(f => f.absolutePath);
     }
+    // Note: If targetFiles is empty, safeTargetPaths is [] which tells executeSearch
+    // to run ripgrep directly on baseDir with glob filters in parallel (zero Node I/O overhead!)
 
     const searchResult = await executeSearch({
       query,
@@ -212,9 +221,6 @@ app.get('/api/search/stream', async (req, res) => {
         const safePath = validateSafePath(relFile);
         if (fs.existsSync(safePath)) safeTargetPaths.push(safePath);
       }
-    } else {
-      const allFiles = await scanDirectory(baseDir, baseDir);
-      safeTargetPaths = allFiles.map(f => f.absolutePath);
     }
 
     // Set SSE headers

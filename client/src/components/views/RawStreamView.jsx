@@ -107,6 +107,7 @@ function HighlightedRawLine({ raw, queryFilter }) {
 export default function RawStreamView({
   results = [],
   query = '',
+  hasSearched = false,
   onInspectContext
 }) {
   const [copiedLine, setCopiedLine] = useState(null);
@@ -160,6 +161,20 @@ export default function RawStreamView({
   };
 
   if (results.length === 0) {
+    if (!hasSearched) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400 font-mono">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-4 text-amber-400 shadow-glow-amber">
+            <Terminal className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-200 mb-1">Raw Stream Ready</h3>
+          <p className="text-xs text-slate-400 max-w-md mb-4">
+            Enter a query above and execute search or start a live stream to view high-speed raw log output.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="p-12 text-center text-slate-500 font-mono text-sm">
         <Terminal className="w-8 h-8 mx-auto mb-3 text-slate-600" />

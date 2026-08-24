@@ -3,20 +3,24 @@
  * Parses single-line combos, multi-line stealer blocks, key-value logs, JSON dumps, and token payloads.
  */
 
+const COMMON_WEAK_PASSWORDS = new Set(['123456', 'password', '12345678', 'qwerty', '123456789', 'admin', 'pass123', 'root']);
+
 /**
- * Calculate approximate Shannon entropy for password strength evaluation
+ * Calculate approximate Shannon entropy for password strength evaluation (High performance)
  */
 export function calculateEntropy(password) {
   if (!password) return 0;
   const len = password.length;
-  const freq = {};
+  if (len === 0) return 0;
+  
+  const freq = new Map();
   for (let i = 0; i < len; i++) {
     const char = password[i];
-    freq[char] = (freq[char] || 0) + 1;
+    freq.set(char, (freq.get(char) || 0) + 1);
   }
   let entropy = 0;
-  for (const char in freq) {
-    const p = freq[char] / len;
+  for (const count of freq.values()) {
+    const p = count / len;
     entropy -= p * Math.log2(p);
   }
   return Math.round(entropy * len * 10) / 10;
@@ -34,14 +38,14 @@ export function evaluatePasswordStrength(password) {
   const hasDigit = /[0-9]/.test(password);
   const hasSpecial = /[^A-Za-z0-9]/.test(password);
   
-  const variety = [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length;
-  const entropy = calculateEntropy(password);
+  const variety = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
 
-  // Common weak passwords
-  const commonWeak = ['123456', 'password', '12345678', 'qwerty', '123456789', 'admin', 'pass123', 'root'];
-  if (commonWeak.includes(password.toLowerCase()) || length < 5) {
-    return { level: 'Weak', score: 1, entropy, color: 'rose' };
+  // Fast O(1) common weak passwords check
+  if (COMMON_WEAK_PASSWORDS.has(password.toLowerCase()) || length < 5) {
+    return { level: 'Weak', score: 1, entropy: calculateEntropy(password), color: 'rose' };
   }
+
+  const entropy = calculateEntropy(password);
 
   if (length >= 12 && variety >= 3 && entropy > 45) {
     return { level: 'Very Strong', score: 4, entropy, color: 'emerald' };
@@ -56,22 +60,27 @@ export function evaluatePasswordStrength(password) {
 }
 
 /**
- * Extract clean domain name from URL or host string
+ * Extract clean domain name from URL or host string with zero object allocation
  */
 export function extractDomain(urlOrHost) {
   if (!urlOrHost) return 'Unknown';
-  try {
-    let clean = urlOrHost.trim();
-    if (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('ftp://')) {
-      clean = 'https://' + clean;
-    }
-    const urlObj = new URL(clean);
-    return urlObj.hostname.replace(/^www\./, '');
-  } catch {
-    // Regex fallback
-    const match = urlOrHost.match(/(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d+)?/i);
-    return match ? match[1] : urlOrHost.slice(0, 40);
+  let host = urlOrHost.trim();
+  const protoIdx = host.indexOf('://');
+  if (protoIdx !== -1) {
+    host = host.slice(protoIdx + 3);
   }
+  const slashIdx = host.indexOf('/');
+  if (slashIdx !== -1) {
+    host = host.slice(0, slashIdx);
+  }
+  const colonIdx = host.indexOf(':');
+  if (colonIdx !== -1) {
+    host = host.slice(0, colonIdx);
+  }
+  if (host.startsWith('www.')) {
+    host = host.slice(4);
+  }
+  return host || 'Unknown';
 }
 
 /**

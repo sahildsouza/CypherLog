@@ -4,9 +4,24 @@ import { Globe, HardDrive, Filter, BarChart3, Layers, FileText } from 'lucide-re
 export default function AnalyticsView({
   analytics,
   results = [],
+  hasSearched = false,
   onApplyDomainFilter
 }) {
   if (!analytics || results.length === 0) {
+    if (!hasSearched) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400 font-mono">
+          <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-4 text-violet-400 shadow-glow-violet">
+            <BarChart3 className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-200 mb-1">Analytics Ready</h3>
+          <p className="text-xs text-slate-400 max-w-md mb-4">
+            Run a search query to analyze target domains, credential strength distribution, and file frequency charts.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="p-12 text-center text-slate-500 font-mono text-sm">
         <BarChart3 className="w-8 h-8 mx-auto mb-3 text-slate-600" />

@@ -108,12 +108,52 @@ function parseRipgrepOutputLine(line, baseDir, fallbackPath = '') {
   };
 }
 
+// In-memory Search LRU Cache
+const SEARCH_CACHE_MAX = 50;
+const SEARCH_CACHE_TTL_MS = 60 * 1000;
+const searchCache = new Map();
+
+function getCachedSearch(key) {
+  const cached = searchCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > SEARCH_CACHE_TTL_MS) {
+    searchCache.delete(key);
+    return null;
+  }
+  return cached.data;
+}
+
+function setCachedSearch(key, data) {
+  if (searchCache.size >= SEARCH_CACHE_MAX) {
+    const oldestKey = searchCache.keys().next().value;
+    searchCache.delete(oldestKey);
+  }
+  searchCache.set(key, { timestamp: Date.now(), data });
+}
+
+/**
+ * Fast sample check for multi-line stealer headers without loading full files into heap
+ */
+function isMultiLineStealerHeader(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.allocUnsafe(32 * 1024);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    fs.closeSync(fd);
+    if (bytesRead <= 0) return false;
+    const sample = buffer.toString('utf8', 0, bytesRead);
+    return /(?:URL|Host|Site):\s*https?:\/\//i.test(sample) && /(?:USER|Username|Login):\s*/i.test(sample);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Execute high-speed search across single or multiple files using ripgrep or stream engine
  */
 export async function executeSearch({
   query,
-  targetFiles = [], // Array of absolute safe paths
+  targetFiles = [], // Array of absolute safe paths (empty = global baseDir)
   baseDir,
   isRegex = false,
   caseSensitive = false,
@@ -122,36 +162,39 @@ export async function executeSearch({
   targetField = 'ALL', // 'ALL' | 'URL' | 'USER' | 'PASS'
   customRules = []
 }) {
+  const cacheKey = `${query || ''}::${(targetFiles || []).join(',')}::${isRegex}::${caseSensitive}::${invertMatch}::${targetField}::${maxResults}::${customRules.length}`;
+  const cachedResult = getCachedSearch(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   const startTime = process.hrtime.bigint();
 
   let rawMatches = [];
-  let filesScannedCount = targetFiles.length;
+  let filesScannedCount = (targetFiles && targetFiles.length > 0) ? targetFiles.length : 1;
   let totalBytesScanned = 0;
 
-  // Calculate total size of files to be scanned
-  for (const f of targetFiles) {
-    try {
-      const stat = fs.statSync(f);
-      totalBytesScanned += stat.size;
-    } catch {
-      // file might not exist or inaccessible
+  // Calculate total size if specific target files given
+  if (targetFiles && targetFiles.length > 0) {
+    for (const f of targetFiles) {
+      try {
+        const stat = fs.statSync(f);
+        totalBytesScanned += stat.size;
+      } catch {}
     }
   }
 
-  // If target files specified, check for multi-line stealer logs
+  // If specific target files selected, check for multi-line stealer logs via fast sampling
   let stealerParsedResults = [];
-  if (targetFiles.length > 0) {
+  if (targetFiles && targetFiles.length > 0) {
     for (const f of targetFiles) {
       try {
-        if (fs.existsSync(f)) {
+        if (fs.existsSync(f) && isMultiLineStealerHeader(f)) {
           const content = fs.readFileSync(f, 'utf8');
-          // Check if file contains multi-line stealer pattern (URL: ... \n Username: ...)
-          if (/(?:URL|Host|Site):\s*https?:\/\//i.test(content) && /(?:USER|Username|Login):\s*/i.test(content)) {
-            const relPath = baseDir ? path.relative(baseDir, f).replace(/\\/g, '/') : path.basename(f);
-            const blocks = parseMultiLineStealerBlocks(content, relPath);
-            if (blocks.length > 0) {
-              stealerParsedResults.push(...blocks);
-            }
+          const relPath = baseDir ? path.relative(baseDir, f).replace(/\\/g, '/') : path.basename(f);
+          const blocks = parseMultiLineStealerBlocks(content, relPath);
+          if (blocks.length > 0) {
+            stealerParsedResults.push(...blocks);
           }
         }
       } catch {}
@@ -267,7 +310,7 @@ export async function executeSearch({
 
   const deduplicatedResults = Array.from(uniqueKeyMap.values());
 
-  return {
+  const resultPayload = {
     metrics: {
       executionTimeMs: Math.round(executionTimeMs * 100) / 100,
       totalMatches: parsedResults.length,
@@ -290,6 +333,9 @@ export async function executeSearch({
         .map(([file, count]) => ({ file, count }))
     }
   };
+
+  setCachedSearch(cacheKey, resultPayload);
+  return resultPayload;
 }
 
 /**
@@ -318,6 +364,9 @@ export function streamSearch({
     '-n',
     '--no-heading',
     '--color=never',
+    '--mmap',
+    '--no-ignore',
+    '--max-columns', '2000',
     '--max-count', String(maxResults)
   ];
 
@@ -330,7 +379,7 @@ export function streamSearch({
   if (targetFiles && targetFiles.length > 0) {
     args.push('--', ...targetFiles);
   } else {
-    args.push('--', baseDir);
+    args.push('-g', '*.txt', '-g', '*.log', '-g', '*.csv', '--', baseDir);
   }
 
   let child;
@@ -617,6 +666,9 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
       '-n', // line numbers
       '--no-heading',
       '--color=never',
+      '--mmap',
+      '--no-ignore',
+      '--max-columns', '2000',
       '--max-count', String(maxResults)
     ];
 
@@ -630,7 +682,7 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
     if (targetFiles && targetFiles.length > 0) {
       args.push('--', ...targetFiles);
     } else {
-      args.push('--', baseDir);
+      args.push('-g', '*.txt', '-g', '*.log', '-g', '*.csv', '--', baseDir);
     }
 
     execFile(bin, args, { maxBuffer: 50 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {

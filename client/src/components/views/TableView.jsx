@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Copy, Check, Eye, EyeOff, ExternalLink, ShieldAlert, Key, Globe, FileText, ChevronLeft, ChevronRight, Hash } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Copy, Check, Eye, EyeOff, ExternalLink, ShieldAlert, Key, Globe, FileText, ChevronLeft, ChevronRight, Hash, Search } from 'lucide-react';
 
 export default function TableView({
   results = [],
   maskPasswords = true,
+  hasSearched = false,
   onInspectContext
 }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -24,17 +25,20 @@ export default function TableView({
     setRevealedRows(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
-  // Sorting
-  const sorted = [...results].sort((a, b) => {
-    let valA = a[sortField] || '';
-    let valB = b[sortField] || '';
-    if (typeof valA === 'string') valA = valA.toLowerCase();
-    if (typeof valB === 'string') valB = valB.toLowerCase();
+  // Sorting (Memoized for high performance with up to 50k rows)
+  const sorted = useMemo(() => {
+    if (!results || results.length === 0) return [];
+    return [...results].sort((a, b) => {
+      let valA = a[sortField] || '';
+      let valB = b[sortField] || '';
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
 
-    if (valA < valB) return sortAsc ? -1 : 1;
-    if (valA > valB) return sortAsc ? 1 : -1;
-    return 0;
-  });
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }, [results, sortField, sortAsc]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
@@ -51,6 +55,24 @@ export default function TableView({
   };
 
   if (results.length === 0) {
+    if (!hasSearched) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400 font-mono">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 text-cyan-400 shadow-glow-cyan">
+            <Search className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-200 mb-1">Ready to Search</h3>
+          <p className="text-xs text-slate-400 max-w-md mb-4">
+            Enter a search term, domain, username, or credential query above and click <span className="text-cyan-400 font-bold">SEARCH</span>.
+          </p>
+          <div className="flex items-center gap-4 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-cyber-800 border border-cyber-border text-slate-400 font-mono">/</kbd> Focus Search</span>
+            <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-cyber-800 border border-cyber-border text-slate-400 font-mono">Enter</kbd> Execute</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-12 text-center text-slate-500 font-mono text-sm">
         <FileText className="w-8 h-8 mx-auto mb-3 text-slate-600" />

@@ -54,6 +54,7 @@ export default function App() {
   const [analytics, setAnalytics] = useState(null);
   const [isDeduplicated, setIsDeduplicated] = useState(false);
   const [maskPasswords, setMaskPasswords] = useState(true);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // View & UI State
   const [activeTab, setActiveTab] = useState('TABLE'); // 'TABLE' | 'RAW' | 'ANALYTICS'
@@ -120,6 +121,7 @@ export default function App() {
   const handleExecuteSearch = useCallback(async (customQuery) => {
     const activeQuery = customQuery !== undefined ? customQuery : query;
     setIsSearching(true);
+    setHasSearched(true);
 
     if (activeStreamAbortRef.current) {
       activeStreamAbortRef.current.abort();
@@ -162,6 +164,7 @@ export default function App() {
         let buffer = '';
         const allItems = [];
         const uniqueMap = new Map();
+        let lastFlushTime = Date.now();
 
         while (true) {
           const { done, value } = await reader.read();
@@ -188,8 +191,14 @@ export default function App() {
                       : `${item.filePath}::${item.lineNumber}::${item.raw}`;
                     if (!uniqueMap.has(key)) uniqueMap.set(key, item);
                   }
-                  setSearchResults([...allItems]);
-                  setDeduplicatedResults(Array.from(uniqueMap.values()));
+                  
+                  // Throttled UI state updates to maintain 60 FPS
+                  const now = Date.now();
+                  if (now - lastFlushTime > 120) {
+                    setSearchResults([...allItems]);
+                    setDeduplicatedResults(Array.from(uniqueMap.values()));
+                    lastFlushTime = now;
+                  }
                 }
               } catch (e) {
                 console.error('Error parsing stream chunk:', e);
@@ -203,6 +212,10 @@ export default function App() {
             }
           }
         }
+
+        // Final flush on stream complete
+        setSearchResults([...allItems]);
+        setDeduplicatedResults(Array.from(uniqueMap.values()));
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Stream error:', err);
@@ -253,12 +266,9 @@ export default function App() {
     } catch {}
   };
 
-  // Initial Load: Fetch files and run default search for immediate data display
+  // Initial Load: Fetch discovered files only (no automatic full scan on app opened)
   useEffect(() => {
-    fetchFiles().then(() => {
-      // Execute initial search to populate dashboard
-      handleExecuteSearch('');
-    });
+    fetchFiles();
   }, [fetchFiles]);
 
   // Scope selection handlers
@@ -366,6 +376,7 @@ export default function App() {
               <TableView
                 results={displayedList}
                 maskPasswords={maskPasswords}
+                hasSearched={hasSearched}
                 onInspectContext={handleInspectContext}
               />
             )}
@@ -374,6 +385,7 @@ export default function App() {
               <RawStreamView
                 results={displayedList}
                 query={query}
+                hasSearched={hasSearched}
                 onInspectContext={handleInspectContext}
               />
             )}
@@ -382,6 +394,7 @@ export default function App() {
               <AnalyticsView
                 analytics={analytics}
                 results={displayedList}
+                hasSearched={hasSearched}
                 onApplyDomainFilter={handleApplyDomainFilter}
               />
             )}
