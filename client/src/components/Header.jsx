@@ -15,7 +15,15 @@ export default function Header({
   engineType = 'ripgrep'
 }) {
   return (
-    <header className="border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 sticky top-0 z-30 transition-all shadow-lg">
+    <header className="relative border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 sticky top-0 z-30 transition-all shadow-lg">
+      
+      {/* Top Edge Laser Progress Indicator */}
+      {isSearching && (
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-cyber-950 overflow-hidden z-50">
+          <div className="animate-cyber-progress" />
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Left: Scope Sidebar Toggle Button + Brand Logo & Title */}

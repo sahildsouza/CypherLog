@@ -106,3 +106,38 @@
 .text-glow-emerald {
   text-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
 }
+
+/* Cyber Progress Bar Animations */
+@keyframes cyber-progress-indeterminate {
+  0% {
+    left: -35%;
+    width: 35%;
+  }
+  50% {
+    left: 25%;
+    width: 65%;
+  }
+  100% {
+    left: 100%;
+    width: 35%;
+  }
+}
+
+@keyframes cyber-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-cyber-progress {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.4), #00f0ff, #8b5cf6, rgba(0, 240, 255, 0.4), transparent);
+  animation: cyber-progress-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 12px #00f0ff, 0 0 24px rgba(0, 240, 255, 0.6);
+}
+
+.animate-cyber-shimmer {
+  animation: cyber-shimmer 1.8s infinite;
+}
+

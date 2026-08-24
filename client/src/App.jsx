@@ -350,6 +350,7 @@ export default function App() {
             setIsLiveStreaming={setIsLiveStreaming}
             onOpenRules={() => setIsRulesModalOpen(true)}
             rulesCount={customRules.filter(r => r.enabled !== false).length}
+            streamMatchCount={searchResults.length}
           />
 
           {/* Performance HUD & Metrics Bar */}

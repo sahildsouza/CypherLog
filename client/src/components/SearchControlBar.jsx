@@ -11,7 +11,8 @@ export default function SearchControlBar({
   isLiveStreaming = false,
   setIsLiveStreaming,
   onOpenRules,
-  rulesCount = 0
+  rulesCount = 0,
+  streamMatchCount = 0
 }) {
   const inputRef = useRef(null);
 
@@ -38,8 +39,10 @@ export default function SearchControlBar({
   };
 
   return (
-    <div className="p-3 sm:p-4 border-b border-cyber-border bg-cyber-900/90 backdrop-blur-md">
-      <div className="flex flex-col gap-2.5">
+    <div className="relative border-b border-cyber-border bg-cyber-900/90 backdrop-blur-md">
+      
+      {/* Search Bar Controls Body */}
+      <div className="p-3 sm:p-4 flex flex-col gap-2.5">
         
         {/* Main Search Input Row */}
         <div className="flex items-stretch gap-2">
@@ -154,6 +157,39 @@ export default function SearchControlBar({
         </div>
 
       </div>
+
+      {/* Real-time Search Progress Bar & Activity HUD */}
+      {isSearching && (
+        <div className="w-full">
+          {/* Animated Neon Cyber Progress Laser Line */}
+          <div className="relative h-1 w-full bg-cyber-950 overflow-hidden">
+            <div className="animate-cyber-progress" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent animate-cyber-shimmer pointer-events-none" />
+          </div>
+
+          {/* Search Activity Status Readout */}
+          <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 bg-cyber-950/90 border-t border-cyber-border/60 text-[11px] font-mono text-cyan-300">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+              </span>
+              <span className="font-semibold text-slate-200">
+                {isLiveStreaming ? 'Streaming matching records in real-time...' : 'Scanning dataset with ripgrep multi-threaded engine...'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {isLiveStreaming && streamMatchCount > 0 && (
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold">
+                  {streamMatchCount.toLocaleString()} matches streamed
+                </span>
+              )}
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider hidden sm:inline">Searching...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
