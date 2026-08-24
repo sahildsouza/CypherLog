@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import FileExplorerSidebar from './components/FileExplorerSidebar';
 import SearchControlBar from './components/SearchControlBar';
-import MetricsBar from './components/MetricsBar';
 import ViewModeTabs from './components/ViewModeTabs';
 import TableView from './components/views/TableView';
 import RawStreamView from './components/views/RawStreamView';
@@ -316,7 +315,7 @@ export default function App() {
         {/* Right Dashboard Area */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-cyber-950">
           
-          {/* Query Execution Controls */}
+          {/* Query Execution Controls (with Fields, Unique, Mask, Export in 1 line) */}
           <SearchControlBar
             query={query}
             setQuery={setQuery}
@@ -324,25 +323,20 @@ export default function App() {
             isSearching={isSearching}
             targetField={targetField}
             setTargetField={setTargetField}
-            streamMatchCount={searchResults.length}
-          />
-
-          {/* Performance HUD & Metrics Bar */}
-          <MetricsBar
-            metrics={metrics}
             isDeduplicated={isDeduplicated}
             setIsDeduplicated={setIsDeduplicated}
             maskPasswords={maskPasswords}
             setMaskPasswords={setMaskPasswords}
             onOpenExport={() => setIsExportModalOpen(true)}
-            displayedCount={displayedList.length}
+            streamMatchCount={searchResults.length}
           />
 
-          {/* View Mode Switcher Tabs */}
+          {/* View Mode Switcher Tabs with Speed & Results metrics beside tabs */}
           <ViewModeTabs
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             totalResults={displayedList.length}
+            metrics={metrics}
           />
 
           {/* Active View Container */}

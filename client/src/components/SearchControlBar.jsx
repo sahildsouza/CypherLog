@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Search, Sparkles, X, CornerDownLeft } from 'lucide-react';
+import { Search, Sparkles, X, CornerDownLeft, Layers, Eye, EyeOff, Download } from 'lucide-react';
 
 export default function SearchControlBar({
   query,
@@ -8,6 +8,11 @@ export default function SearchControlBar({
   isSearching,
   targetField,
   setTargetField,
+  isDeduplicated,
+  setIsDeduplicated,
+  maskPasswords,
+  setMaskPasswords,
+  onOpenExport,
   streamMatchCount = 0
 }) {
   const inputRef = useRef(null);
@@ -92,15 +97,17 @@ export default function SearchControlBar({
           </button>
         </div>
 
-        {/* Target Field Filter Selector */}
-        <div className="flex items-center gap-1 text-xs font-mono">
+        {/* Combined 1-Line Control Strip: Fields Filter (Left) + Unique, Mask, Export (Right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+          
+          {/* Target Field Filter Selector */}
           <div className="flex items-center gap-0.5 sm:gap-1 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border">
             <span className="text-[10px] text-slate-500 px-1 uppercase hidden xs:inline">Field:</span>
             {[
               { id: 'ALL', label: 'All Fields' },
-              { id: 'URL', label: 'URL / Domain' },
-              { id: 'USER', label: 'Username' },
-              { id: 'PASS', label: 'Password' }
+              { id: 'URL', label: 'URL' },
+              { id: 'USER', label: 'User' },
+              { id: 'PASS', label: 'Pass' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -115,6 +122,53 @@ export default function SearchControlBar({
               </button>
             ))}
           </div>
+
+          {/* Right Action Buttons: Unique + Mask + Export in 1 Line */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Deduplication Toggle Button */}
+            <button
+              onClick={() => setIsDeduplicated(!isDeduplicated)}
+              title="Toggle deduplication to remove duplicate combos"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer ${
+                isDeduplicated
+                  ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-200 shadow-glow-cyan'
+                  : 'bg-cyber-850 hover:bg-cyber-800 border-cyber-border text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-cyber-accent shrink-0" />
+              <span>Unique</span>
+            </button>
+
+            {/* Global Password Masking Toggle Button */}
+            <button
+              onClick={() => setMaskPasswords(!maskPasswords)}
+              title="Mask or unmask passwords across the interface"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-slate-100 transition-colors text-[11px] cursor-pointer"
+            >
+              {maskPasswords ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>Reveal</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>Mask</span>
+                </>
+              )}
+            </button>
+
+            {/* Export Modal Trigger Button */}
+            <button
+              onClick={onOpenExport}
+              title="Export search results to CSV / JSON / TXT"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-glow-violet transition-all text-[11px] cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span>Export</span>
+            </button>
+          </div>
+
         </div>
 
       </div>

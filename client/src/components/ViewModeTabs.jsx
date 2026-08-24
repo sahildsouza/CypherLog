@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { Table, Terminal, BarChart3 } from 'lucide-react';
+import { Table, Terminal, BarChart3, Timer, Database } from 'lucide-react';
 
 export default function ViewModeTabs({
   activeTab,
   setActiveTab,
-  totalResults = 0
+  totalResults = 0,
+  metrics = null
 }) {
   const tabs = [
     { id: 'TABLE', label: 'Structured Table', shortLabel: 'Table', icon: Table, shortcut: '1' },
@@ -25,10 +26,10 @@ export default function ViewModeTabs({
   }, [setActiveTab]);
 
   return (
-    <div className="px-3 sm:px-4 py-1.5 sm:py-2 border-b border-cyber-border bg-cyber-900 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+    <div className="px-3 sm:px-4 py-1.5 sm:py-2 border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md flex items-center justify-between gap-2 overflow-x-auto no-scrollbar font-mono text-xs">
       
-      {/* Tab Switchers */}
-      <div className="flex items-center gap-1 sm:gap-1.5 font-mono text-xs">
+      {/* Left: View Mode Tab Switchers */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         {tabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -51,6 +52,56 @@ export default function ViewModeTabs({
             </button>
           );
         })}
+      </div>
+
+      {/* Right: Search Execution Speed & Results Count Strip */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-[11px] sm:text-xs">
+        {metrics ? (
+          <>
+            {/* Speed Badge */}
+            <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold shadow-glow-emerald">
+              <Timer className="w-3.5 h-3.5" />
+              <span>{metrics.executionTimeMs} ms</span>
+            </div>
+
+            {/* Results Count */}
+            <div className="flex items-center gap-1 text-slate-300">
+              <span>
+                <strong className="text-cyan-300 font-bold">{totalResults.toLocaleString()}</strong> results
+              </span>
+              {metrics.totalMatches !== undefined && metrics.totalMatches !== totalResults && (
+                <>
+                  <span className="text-slate-600">/</span>
+                  <span className="text-slate-400 hidden xs:inline">
+                    {metrics.totalMatches.toLocaleString()} raw
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Files Scanned & Throughput (Hidden on mobile) */}
+            {metrics.filesScanned > 0 && (
+              <div className="hidden lg:flex items-center gap-1.5 text-slate-400 text-[11px]">
+                <span className="text-slate-700">•</span>
+                <Database className="w-3 h-3 text-slate-500" />
+                <span>{metrics.filesScanned} files</span>
+                {metrics.throughputMBs > 0 && (
+                  <>
+                    <span className="text-slate-700">•</span>
+                    <span className="text-slate-500">{metrics.throughputMBs} MB/s</span>
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          totalResults > 0 && (
+            <div className="flex items-center gap-1 text-slate-300">
+              <strong className="text-cyan-300 font-bold">{totalResults.toLocaleString()}</strong>
+              <span className="text-slate-400">items</span>
+            </div>
+          )
+        )}
       </div>
 
     </div>
