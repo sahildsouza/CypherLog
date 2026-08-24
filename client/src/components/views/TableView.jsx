@@ -4,8 +4,7 @@ import { Copy, Check, Eye, EyeOff, ExternalLink, ShieldAlert, Key, Globe, FileTe
 export default function TableView({
   results = [],
   maskPasswords = true,
-  onInspectContext,
-  isCompact = false
+  onInspectContext
 }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [revealedRows, setRevealedRows] = useState({});
@@ -105,9 +104,7 @@ export default function TableView({
               return (
                 <tr 
                   key={`${row.filePath}-${row.lineNumber}-${idx}`}
-                  className={`hover:bg-cyber-850/60 transition-colors group ${
-                    isCompact ? 'h-9' : 'h-11'
-                  }`}
+                  className="hover:bg-cyber-850/60 transition-colors group h-9"
                 >
                   {/* Row Number */}
                   <td className="px-3 text-slate-500 text-center font-mono text-[11px] whitespace-nowrap align-middle">

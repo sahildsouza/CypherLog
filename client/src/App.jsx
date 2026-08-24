@@ -57,7 +57,6 @@ export default function App() {
 
   // View & UI State
   const [activeTab, setActiveTab] = useState('TABLE'); // 'TABLE' | 'RAW' | 'ANALYTICS'
-  const [isCompact, setIsCompact] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [inspectTarget, setInspectTarget] = useState(null);
   const [isContextDrawerOpen, setIsContextDrawerOpen] = useState(false);
@@ -322,8 +321,6 @@ export default function App() {
           <ViewModeTabs
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            isCompact={isCompact}
-            setIsCompact={setIsCompact}
             totalResults={displayedList.length}
           />
 
@@ -334,7 +331,6 @@ export default function App() {
                 results={displayedList}
                 maskPasswords={maskPasswords}
                 onInspectContext={handleInspectContext}
-                isCompact={isCompact}
               />
             )}
 
