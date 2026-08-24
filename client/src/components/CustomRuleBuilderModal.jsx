@@ -55,6 +55,7 @@ export default function CustomRuleBuilderModal({
 }) {
   const [rules, setRules] = useState([]);
   const [selectedRuleId, setSelectedRuleId] = useState(null);
+  const [mobileTab, setMobileTab] = useState('editor'); // 'editor' | 'library'
 
   // Form Editor State
   const [ruleName, setRuleName] = useState('');
@@ -91,6 +92,7 @@ export default function CustomRuleBuilderModal({
     setTestLine(rule.sample || '');
     setTestResult(null);
     setTestError(null);
+    setMobileTab('editor');
   };
 
   const loadPreset = (preset) => {
@@ -103,6 +105,7 @@ export default function CustomRuleBuilderModal({
     setTestLine(preset.sample || '');
     setTestResult(null);
     setTestError(null);
+    setMobileTab('editor');
   };
 
   const handleAddColumn = () => {
@@ -240,11 +243,37 @@ export default function CustomRuleBuilderModal({
           </button>
         </div>
 
+        {/* Mobile View Switcher Tab */}
+        <div className="md:hidden flex border-b border-cyber-border bg-cyber-950 p-1.5 gap-1.5">
+          <button
+            onClick={() => setMobileTab('editor')}
+            className={`flex-1 py-1.5 rounded-lg font-bold text-center transition-colors text-xs ${
+              mobileTab === 'editor' 
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' 
+                : 'text-slate-400 hover:text-slate-200 bg-cyber-900 border border-cyber-border/40'
+            }`}
+          >
+            ⚙ Editor & Tester
+          </button>
+          <button
+            onClick={() => setMobileTab('library')}
+            className={`flex-1 py-1.5 rounded-lg font-bold text-center transition-colors text-xs ${
+              mobileTab === 'library' 
+                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm' 
+                : 'text-slate-400 hover:text-slate-200 bg-cyber-900 border border-cyber-border/40'
+            }`}
+          >
+            📑 Presets & Rules ({rules.length})
+          </button>
+        </div>
+
         {/* Modal Body: Left Rules List & Right Rule Editor */}
         <div className="grid grid-cols-1 md:grid-cols-12 flex-1 min-h-0 overflow-y-auto">
           
           {/* Left Panel: Saved Rules & Presets (4 Cols) */}
-          <div className="md:col-span-4 p-3 border-r border-cyber-border/70 bg-cyber-950/70 flex flex-col gap-3">
+          <div className={`md:col-span-4 p-3 border-r border-cyber-border/70 bg-cyber-950/70 flex flex-col gap-3 ${
+            mobileTab === 'library' ? 'flex' : 'hidden md:flex'
+          }`}>
             
             {/* New Rule Action */}
             <button
@@ -335,7 +364,9 @@ export default function CustomRuleBuilderModal({
           </div>
 
           {/* Right Panel: Rule Configuration & Live Tester (8 Cols) */}
-          <div className="md:col-span-8 p-4 sm:p-5 space-y-4 overflow-y-auto">
+          <div className={`md:col-span-8 p-4 sm:p-5 space-y-4 overflow-y-auto ${
+            mobileTab === 'editor' ? 'block' : 'hidden md:block'
+          }`}>
             
             {/* Rule Name & Type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -526,22 +557,22 @@ export default function CustomRuleBuilderModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-cyber-850 border-t border-cyber-border flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+        <div className="p-3.5 sm:p-4 bg-cyber-850 border-t border-cyber-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="text-[11px] text-slate-500 hidden sm:block">
             Rules apply automatically across both Batch & Live Streaming searches.
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-cyber-800 hover:bg-cyber-750 text-slate-300 font-medium transition-colors"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-cyber-800 hover:bg-cyber-750 text-slate-300 font-medium transition-colors text-center"
             >
               Close
             </button>
 
             <button
               onClick={handleSaveCurrentRule}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold tracking-wide shadow-glow-cyan transition-all flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold tracking-wide shadow-glow-cyan transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <Check className="w-4 h-4" />
               <span>Save & Apply Rule</span>

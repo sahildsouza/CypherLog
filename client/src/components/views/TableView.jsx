@@ -250,19 +250,24 @@ export default function TableView({
       </div>
 
       {/* Sticky Pagination Footer */}
-      <div className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 bg-cyber-900/95 backdrop-blur-md border-t border-cyber-border sticky bottom-0 z-20 flex items-center justify-between gap-2 text-xs font-mono text-slate-400 shadow-lg">
+      <div className="shrink-0 px-3.5 sm:px-5 py-2.5 sm:py-3 bg-cyber-900/95 backdrop-blur-md border-t border-cyber-border sticky bottom-0 z-20 flex items-center justify-between gap-3 text-xs font-mono text-slate-300 shadow-2xl">
         {/* Left: Range and Page Size Selector */}
-        <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs min-w-0">
-          <span className="truncate">
-            <strong className="text-slate-200">{startIndex + 1}</strong>-<strong className="text-slate-200">{Math.min(startIndex + pageSize, sorted.length)}</strong> of <strong className="text-cyan-300">{sorted.length.toLocaleString()}</strong>
-          </span>
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="font-semibold text-slate-200">{startIndex + 1}–{Math.min(startIndex + pageSize, sorted.length)}</span>
+            <span className="text-slate-500 font-normal">of</span>
+            <span className="font-bold text-cyan-400">{sorted.length.toLocaleString()}</span>
+          </div>
+
           <span className="text-slate-700 hidden xs:inline">|</span>
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500 hidden sm:inline">Rows:</span>
+
+          {/* Rows Dropdown with touch-friendly padding */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 hidden sm:inline text-xs">Rows:</span>
             <select
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="bg-cyber-850 border border-cyber-border text-slate-200 rounded px-1.5 py-0.5 text-[11px] sm:text-xs focus:outline-none focus:border-cyan-400"
+              className="bg-cyber-850 hover:bg-cyber-800 border border-cyber-border/90 text-cyan-300 font-semibold rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-cyan-400 cursor-pointer shadow-sm"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -272,28 +277,32 @@ export default function TableView({
           </div>
         </div>
 
-        {/* Right: Page Switcher */}
-        <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs shrink-0">
+        {/* Right: Touch-Friendly Page Switcher */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="p-1 sm:px-1.5 rounded-md bg-cyber-850 hover:bg-cyber-800 disabled:opacity-30 disabled:cursor-not-allowed border border-cyber-border text-slate-300 hover:text-cyan-300 transition-colors"
+            className="h-8 w-8 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg bg-cyber-850 hover:bg-cyber-800 disabled:opacity-25 disabled:cursor-not-allowed border border-cyber-border text-slate-200 hover:text-cyan-300 active:scale-95 transition-all shadow-sm cursor-pointer"
             title="Previous Page"
+            aria-label="Previous Page"
           >
-            <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
           
-          <span className="text-slate-300 font-semibold px-1">
-            {currentPage} <span className="text-slate-600 font-normal">/</span> {totalPages}
-          </span>
+          <div className="px-2.5 py-1 rounded-lg bg-cyber-850/90 border border-cyber-border text-xs font-semibold text-slate-200 shadow-inner flex items-center gap-1">
+            <span className="text-cyan-300 font-bold">{currentPage}</span>
+            <span className="text-slate-600 font-normal">/</span>
+            <span className="text-slate-400">{totalPages}</span>
+          </div>
 
           <button
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="p-1 sm:px-1.5 rounded-md bg-cyber-850 hover:bg-cyber-800 disabled:opacity-30 disabled:cursor-not-allowed border border-cyber-border text-slate-300 hover:text-cyan-300 transition-colors"
+            className="h-8 w-8 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg bg-cyber-850 hover:bg-cyber-800 disabled:opacity-25 disabled:cursor-not-allowed border border-cyber-border text-slate-200 hover:text-cyan-300 active:scale-95 transition-all shadow-sm cursor-pointer"
             title="Next Page"
+            aria-label="Next Page"
           >
-            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
