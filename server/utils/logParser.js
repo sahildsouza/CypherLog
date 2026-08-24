@@ -1,6 +1,7 @@
 /**
  * Intelligent Log & Credential Payload Parser
- * Parses single-line combos, multi-line stealer blocks, key-value logs, JSON dumps, and token payloads.
+ * Automatically identifies, extracts, and standardizes credentials across all delimiter formats,
+ * multi-line stealer blocks, key-value logs, JSON dumps, and token payloads without needing manual rules.
  */
 
 const COMMON_WEAK_PASSWORDS = new Set(['123456', 'password', '12345678', 'qwerty', '123456789', 'admin', 'pass123', 'root']);
@@ -92,107 +93,18 @@ export function isEmail(str) {
 }
 
 /**
- * Parses a line using a user-defined custom rule (delimiter or regex)
+ * Helper to test if a string looks like a web URL or domain
  */
-export function parseCustomRule(trimmed, rawLine, lineNumber = 1, filePath = '', rule) {
-  if (!rule || !trimmed) return null;
-
-  try {
-    if (rule.type === 'regex' && rule.pattern) {
-      const regex = new RegExp(rule.pattern);
-      const match = trimmed.match(regex);
-      if (match) {
-        const groups = match.groups || {};
-        const url = groups.url || groups.domain || groups.host || (match[1] && !groups.username ? match[1] : '') || 'N/A';
-        const username = groups.username || groups.user || groups.email || groups.account || (match[2] && !groups.password ? match[2] : '') || 'N/A';
-        const password = groups.password || groups.pass || groups.pwd || (match[3] ? match[3] : '') || '';
-        const token = groups.token || groups.key || groups.secret || '';
-
-        return {
-          type: 'CUSTOM_RULE',
-          url: url || 'N/A',
-          domain: extractDomain(url),
-          username: username || 'N/A',
-          password,
-          token,
-          isEmail: isEmail(username),
-          strength: evaluatePasswordStrength(password),
-          raw: rawLine,
-          lineNumber,
-          filePath,
-          metadata: {
-            format: `Custom: ${rule.name || 'Regex'}`
-          }
-        };
-      }
-    } else if (rule.type === 'delimiter' && rule.delimiter) {
-      const parts = trimmed.split(rule.delimiter);
-      if (parts.length >= 2) {
-        const columns = rule.columns || ['url', 'username', 'password'];
-        let url = 'N/A';
-        let username = 'N/A';
-        let password = '';
-        let token = '';
-
-        columns.forEach((col, idx) => {
-          if (idx < parts.length) {
-            const val = parts[idx].trim();
-            if (col === 'url' || col === 'domain' || col === 'host') url = val;
-            else if (col === 'username' || col === 'user' || col === 'email' || col === 'account') username = val;
-            else if (col === 'password' || col === 'pass' || col === 'pwd') password = val;
-            else if (col === 'token' || col === 'key' || col === 'secret') token = val;
-          }
-        });
-
-        // If extra parts exist and password was last column, combine rest as password
-        const passIdx = columns.indexOf('password') !== -1 ? columns.indexOf('password') : columns.indexOf('pass');
-        if (passIdx !== -1 && passIdx === columns.length - 1 && parts.length > columns.length) {
-          password = parts.slice(passIdx).join(rule.delimiter).trim();
-        }
-
-        return {
-          type: 'CUSTOM_RULE',
-          url: url || 'N/A',
-          domain: extractDomain(url),
-          username: username || 'N/A',
-          password,
-          token,
-          isEmail: isEmail(username),
-          strength: evaluatePasswordStrength(password),
-          raw: rawLine,
-          lineNumber,
-          filePath,
-          metadata: {
-            format: `Custom: ${rule.name || 'Delimiter'}`
-          }
-        };
-      }
-    }
-  } catch (err) {
-    // Return null if regex syntax or parsing failed
-    return null;
-  }
-  return null;
+function isUrlOrHost(str) {
+  if (!str) return false;
+  const s = str.trim();
+  return /^https?:\/\//i.test(s) || /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?::\d+)?(?:\/.*)?$/i.test(s);
 }
 
 /**
- * Test a custom rule against sample text
+ * Parse a raw log line or snippet into a structured payload using smart auto-detection
  */
-export function testParserRule(rule, sampleLine) {
-  if (!rule || !sampleLine) {
-    return { success: false, error: 'Rule and sample line are required' };
-  }
-  const result = parseCustomRule(sampleLine.trim(), sampleLine, 1, 'test.txt', rule);
-  if (result) {
-    return { success: true, parsed: result };
-  }
-  return { success: false, error: 'Sample line did not match the rule specification' };
-}
-
-/**
- * Parse a raw log line or snippet into a structured payload
- */
-export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules = []) {
+export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
   if (!rawLine || typeof rawLine !== 'string') {
     return null;
   }
@@ -200,16 +112,6 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
   const trimmed = rawLine.trim();
   if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) {
     return null;
-  }
-
-  // 0. Check custom rules first if supplied
-  if (Array.isArray(customRules) && customRules.length > 0) {
-    for (const rule of customRules) {
-      if (rule && rule.enabled !== false) {
-        const customParsed = parseCustomRule(trimmed, rawLine, lineNumber, filePath, rule);
-        if (customParsed) return customParsed;
-      }
-    }
   }
 
   // 1. Check for JSON format
@@ -225,7 +127,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
         return {
           type: token ? 'TOKEN_JSON' : 'CREDENTIAL_JSON',
           url: url || 'N/A',
-          domain: extractDomain(url),
+          domain: url ? extractDomain(url) : (isEmail(username) ? username.split('@')[1] : 'JSON Dump'),
           username: username || (isEmail(obj.email) ? obj.email : 'N/A'),
           password: password || '',
           token: token || '',
@@ -238,7 +140,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
         };
       }
     } catch {
-      // Not JSON, continue to other parsers
+      // Not valid JSON, continue to other parsers
     }
   }
 
@@ -261,7 +163,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
     };
   }
 
-  const apiKeyMatch = trimmed.match(/(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth_token|client_secret)\s*[:=]\s*['"]?([a-zA-Z0-9_\-]{16,})['"]?/i);
+  const apiKeyMatch = trimmed.match(/(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth_token|client_secret|private[_-]?key)\s*[:=]\s*['"]?([a-zA-Z0-9_\-]{16,})['"]?/i);
   if (apiKeyMatch) {
     return {
       type: 'API_KEY',
@@ -279,9 +181,8 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
     };
   }
 
-  // 3. Check for Stealer multi-line key-value markers on a single line
-  // e.g. "URL: https://... | USER: admin | PASS: 12345" or "URL: ... Username: ... Password: ..."
-  const inlineStealerMatch = trimmed.match(/URL:\s*(https?:\/\/[^\s|]+).*?(?:USER|Username|Login):\s*([^\s|]+).*?(?:PASS|Password|Pwd):\s*([^\s|]+)/i);
+  // 3. Key=Value / Stealer Multi-Key inline formats (e.g. "URL: ... USER: ... PASS: ..." or "user=admin pass=123 url=site")
+  const inlineStealerMatch = trimmed.match(/(?:URL|Host|Site|Domain):\s*([^\s|;]+).*?(?:USER|Username|Login|Email|Account):\s*([^\s|;]+).*?(?:PASS|Password|Pwd|Passwd):\s*([^\s|;]+)/i);
   if (inlineStealerMatch) {
     const url = inlineStealerMatch[1].trim();
     const user = inlineStealerMatch[2].trim();
@@ -298,126 +199,181 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '', customRules
       raw: rawLine,
       lineNumber,
       filePath,
-      metadata: { format: 'Stealer Inline' }
+      metadata: { format: 'Stealer Key-Value' }
     };
   }
 
-  // 4. Standard Delimited Combos: url:user:pass or user:pass:url or domain:port:user:pass
-  // Check if string contains standard URL prefix: http:// or https:// or android://
-  if (/^https?:\/\//i.test(trimmed) || /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/?[^:]*:[^:]+:[^:]+/.test(trimmed)) {
-    // Format: http://domain.com:user:pass OR http://domain.com:8080:user:pass
-    // Let's split by colon carefully
-    const urlMatch = trimmed.match(/^(https?:\/\/[^:]+(?::\d+)?(?:\/[^\s:]*)?):([^:]+):(.*)$/i);
-    if (urlMatch) {
-      const url = urlMatch[1].trim();
-      const user = urlMatch[2].trim();
-      const pass = urlMatch[3].trim();
-      return {
-        type: 'URL_USER_PASS',
-        url,
-        domain: extractDomain(url),
-        username: user,
-        password: pass,
-        token: '',
-        isEmail: isEmail(user),
-        strength: evaluatePasswordStrength(pass),
-        raw: rawLine,
-        lineNumber,
-        filePath,
-        metadata: { format: 'URL:User:Pass' }
-      };
-    }
-
-    // Host without http protocol: sub.example.com:80:user:pass or sub.example.com:user:pass
-    const domainMatch = trimmed.match(/^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?::\d+)?(?:\/[^:]*)?):([^:]+):(.*)$/i);
-    if (domainMatch) {
-      const url = 'https://' + domainMatch[1].trim();
-      const user = domainMatch[2].trim();
-      const pass = domainMatch[3].trim();
-      return {
-        type: 'URL_USER_PASS',
-        url,
-        domain: extractDomain(url),
-        username: user,
-        password: pass,
-        token: '',
-        isEmail: isEmail(user),
-        strength: evaluatePasswordStrength(pass),
-        raw: rawLine,
-        lineNumber,
-        filePath,
-        metadata: { format: 'Domain:User:Pass' }
-      };
+  // 4. Fast Path: Standard Colon Combo with Protocol (https://site.com:user:pass or http://site.com:8080:user:pass)
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const protoEnd = trimmed.indexOf('://') + 3;
+    const firstColon = trimmed.indexOf(':', protoEnd);
+    if (firstColon !== -1) {
+      const secondColon = trimmed.indexOf(':', firstColon + 1);
+      if (secondColon !== -1) {
+        const url = trimmed.slice(0, firstColon).trim();
+        const user = trimmed.slice(firstColon + 1, secondColon).trim();
+        const pass = trimmed.slice(secondColon + 1).trim();
+        return {
+          type: 'URL_USER_PASS',
+          url,
+          domain: extractDomain(url),
+          username: user,
+          password: pass,
+          token: '',
+          isEmail: isEmail(user),
+          strength: evaluatePasswordStrength(pass),
+          raw: rawLine,
+          lineNumber,
+          filePath,
+          metadata: { format: 'URL:User:Pass' }
+        };
+      }
     }
   }
 
-  // 5. Pipe or Semicolon Delimited: url|user|pass or user|pass|url
-  if (trimmed.includes('|') || trimmed.includes(';')) {
-    const sep = trimmed.includes('|') ? '|' : ';';
-    const parts = trimmed.split(sep).map(p => p.trim());
-    if (parts.length >= 3) {
-      // Find which part is URL, email/user, password
-      let url = '';
-      let user = '';
-      let pass = '';
+  // 5. Universal Smart Delimiter Detector (Handles Pipe '|', Semicolon ';', Tab '\t', Comma ',', Colon ':')
+  const delimiters = ['|', ';', '\t', ',', ':'];
+  for (const delim of delimiters) {
+    if (!trimmed.includes(delim)) continue;
 
-      for (const part of parts) {
-        if (/^https?:\/\//i.test(part) || /\.[a-z]{2,}/i.test(part)) {
-          if (!url) url = part;
-        } else if (isEmail(part) || (!user && part.length < 50)) {
-          user = part;
-        } else if (!pass) {
-          pass = part;
+    const parts = trimmed.split(delim).map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) continue;
+
+    // Detect if this split represents valid credentials
+    let detectedUrl = '';
+    let detectedUser = '';
+    let detectedPass = '';
+
+    if (parts.length >= 3) {
+      // 3+ Parts: Determine positions of URL, User, Pass
+      if (isUrlOrHost(parts[0])) {
+        // Format: URL <delim> User <delim> Pass
+        detectedUrl = parts[0];
+        detectedUser = parts[1];
+        detectedPass = parts.slice(2).join(delim);
+      } else if (isUrlOrHost(parts[parts.length - 1])) {
+        // Format: User <delim> Pass <delim> URL
+        detectedUser = parts[0];
+        detectedPass = parts.slice(1, parts.length - 1).join(delim);
+        detectedUrl = parts[parts.length - 1];
+      } else {
+        // Default position: Part0 = User/URL, Part1 = User/Pass, Part2 = Pass
+        if (isEmail(parts[0]) || isEmail(parts[1])) {
+          if (isEmail(parts[0])) {
+            detectedUser = parts[0];
+            detectedPass = parts[1];
+            detectedUrl = parts.slice(2).join(delim);
+          } else {
+            detectedUrl = parts[0];
+            detectedUser = parts[1];
+            detectedPass = parts.slice(2).join(delim);
+          }
+        } else {
+          detectedUrl = parts[0];
+          detectedUser = parts[1];
+          detectedPass = parts.slice(2).join(delim);
         }
       }
 
-      if (!url && parts[0]) url = parts[0];
-      if (!user && parts[1]) user = parts[1];
-      if (!pass && parts[2]) pass = parts[2];
+      if (detectedUser || detectedPass) {
+        let domain = detectedUrl ? extractDomain(detectedUrl) : 'Delimited';
+        if (domain === 'Unknown' || domain === 'Delimited') {
+          if (isEmail(detectedUser)) domain = detectedUser.split('@')[1];
+        }
 
-      return {
-        type: 'DELIMITED_COMBO',
-        url: url || 'N/A',
-        domain: extractDomain(url),
-        username: user || 'N/A',
-        password: pass || '',
-        token: '',
-        isEmail: isEmail(user),
-        strength: evaluatePasswordStrength(pass),
-        raw: rawLine,
-        lineNumber,
-        filePath,
-        metadata: { format: `Delimited (${sep})` }
-      };
+        return {
+          type: 'DELIMITED_COMBO',
+          url: detectedUrl || 'N/A',
+          domain,
+          username: detectedUser || 'N/A',
+          password: detectedPass || '',
+          token: '',
+          isEmail: isEmail(detectedUser),
+          strength: evaluatePasswordStrength(detectedPass),
+          raw: rawLine,
+          lineNumber,
+          filePath,
+          metadata: { format: `Delimited (${delim === '\t' ? 'TAB' : delim})` }
+        };
+      }
+    } else if (parts.length === 2 && delim !== ',') {
+      // 2 Parts (e.g. user:pass, user|pass, user;pass, email:password)
+      const user = parts[0];
+      const pass = parts[1];
+
+      if (user && pass && !user.includes(' ') && user.length < 100) {
+        let domain = 'Generic Auth';
+        if (isEmail(user)) {
+          domain = user.split('@')[1];
+        }
+
+        return {
+          type: 'USER_PASS',
+          url: domain !== 'Generic Auth' ? `https://${domain}` : 'Local/Direct Auth',
+          domain,
+          username: user,
+          password: pass,
+          token: '',
+          isEmail: isEmail(user),
+          strength: evaluatePasswordStrength(pass),
+          raw: rawLine,
+          lineNumber,
+          filePath,
+          metadata: { format: `User${delim}Pass` }
+        };
+      }
     }
   }
 
-  // 6. Two-part Colon Combo: user:pass or email:password
-  const colonIndex = trimmed.indexOf(':');
-  if (colonIndex > 0 && colonIndex < trimmed.length - 1) {
-    const user = trimmed.slice(0, colonIndex).trim();
-    const pass = trimmed.slice(colonIndex + 1).trim();
-
-    // Check if looks like valid user:pass pair
-    if (!user.includes(' ') && pass.length > 0 && user.length < 100) {
-      let domain = 'Generic Auth';
-      if (isEmail(user)) {
-        domain = user.split('@')[1];
-      }
+  // 6. Space-Separated Combos (e.g. "admin@gmail.com SuperPassword123" or "admin@gmail.com pass https://target.com")
+  if (trimmed.includes(' ')) {
+    const spaceParts = trimmed.split(/\s+/);
+    if (spaceParts.length === 2 && isEmail(spaceParts[0])) {
+      const user = spaceParts[0];
+      const pass = spaceParts[1];
+      const domain = user.split('@')[1];
       return {
-        type: 'USER_PASS',
-        url: domain !== 'Generic Auth' ? `https://${domain}` : 'Local/Direct Auth',
+        type: 'SPACE_COMBO',
+        url: `https://${domain}`,
         domain,
         username: user,
         password: pass,
         token: '',
-        isEmail: isEmail(user),
+        isEmail: true,
         strength: evaluatePasswordStrength(pass),
         raw: rawLine,
         lineNumber,
         filePath,
-        metadata: { format: 'User:Pass' }
+        metadata: { format: 'Space-Delimited' }
       };
+    } else if (spaceParts.length >= 3 && (isEmail(spaceParts[0]) || isEmail(spaceParts[1]) || isUrlOrHost(spaceParts[0]) || isUrlOrHost(spaceParts[spaceParts.length - 1]))) {
+      let url = 'N/A';
+      let user = '';
+      let pass = '';
+
+      for (const p of spaceParts) {
+        if (isUrlOrHost(p) && url === 'N/A') url = p;
+        else if (isEmail(p) && !user) user = p;
+        else if (!pass) pass = p;
+      }
+
+      if (user || pass) {
+        const domain = url !== 'N/A' ? extractDomain(url) : (isEmail(user) ? user.split('@')[1] : 'Space Combo');
+        return {
+          type: 'SPACE_COMBO',
+          url,
+          domain,
+          username: user || 'N/A',
+          password: pass || '',
+          token: '',
+          isEmail: isEmail(user),
+          strength: evaluatePasswordStrength(pass),
+          raw: rawLine,
+          lineNumber,
+          filePath,
+          metadata: { format: 'Space-Delimited' }
+        };
+      }
     }
   }
 

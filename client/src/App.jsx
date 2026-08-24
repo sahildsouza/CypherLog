@@ -10,7 +10,6 @@ import AnalyticsView from './components/views/AnalyticsView';
 import ContextDrawer from './components/ContextDrawer';
 import ExportModal from './components/ExportModal';
 import ConfigModal from './components/ConfigModal';
-import CustomRuleBuilderModal from './components/CustomRuleBuilderModal';
 import { Shield, Sparkles, Terminal, HardDrive, RefreshCw } from 'lucide-react';
 
 export default function App() {
@@ -32,17 +31,6 @@ export default function App() {
   const [invertMatch, setInvertMatch] = useState(false);
   const [targetField, setTargetField] = useState('ALL');
   const [autoSearch, setAutoSearch] = useState(false);
-
-  // Custom Rules State (persisted in localStorage)
-  const [customRules, setCustomRules] = useState(() => {
-    try {
-      const saved = localStorage.getItem('cipherlog_custom_rules');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   // Stream Abort Ref
   const activeStreamAbortRef = useRef(null);
@@ -128,8 +116,6 @@ export default function App() {
       activeStreamAbortRef.current = null;
     }
 
-    const enabledRules = customRules.filter(r => r.enabled !== false);
-
     // Live Streaming Mode via Server-Sent Events (SSE)
     if (isLiveStreaming) {
       const abortController = new AbortController();
@@ -146,7 +132,6 @@ export default function App() {
         caseSensitive: String(caseSensitive),
         invertMatch: String(invertMatch),
         targetField,
-        customRules: JSON.stringify(enabledRules),
         maxResults: '50000'
       });
 
@@ -188,11 +173,13 @@ export default function App() {
                   for (const item of chunk) {
                     const key = item.username && item.password 
                       ? `${item.domain}::${item.username}::${item.password}`
-                      : `${item.filePath}::${item.lineNumber}::${item.raw}`;
-                    if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+                      : `${item.filePath}::${item.lineNumber}`;
+                    if (!uniqueMap.has(key)) {
+                      uniqueMap.set(key, item);
+                    }
                   }
-                  
-                  // Throttled UI state updates to maintain 60 FPS
+
+                  // Throttle UI re-renders to every 120ms to prevent React freezing on high throughput
                   const now = Date.now();
                   if (now - lastFlushTime > 120) {
                     setSearchResults([...allItems]);
@@ -238,7 +225,6 @@ export default function App() {
           caseSensitive,
           invertMatch,
           targetField,
-          customRules: enabledRules,
           maxResults: 50000
         })
       });
@@ -257,14 +243,7 @@ export default function App() {
     } finally {
       setIsSearching(false);
     }
-  }, [query, selectedFiles, isRegex, caseSensitive, invertMatch, targetField, customRules, isLiveStreaming]);
-
-  const handleSaveCustomRules = (newRules) => {
-    setCustomRules(newRules);
-    try {
-      localStorage.setItem('cipherlog_custom_rules', JSON.stringify(newRules));
-    } catch {}
-  };
+  }, [query, selectedFiles, isRegex, caseSensitive, invertMatch, targetField, isLiveStreaming]);
 
   // Initial Load: Fetch discovered files only (no automatic full scan on app opened)
   useEffect(() => {
@@ -338,7 +317,6 @@ export default function App() {
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-cyber-950">
           
           {/* Query Execution Controls */}
-          {/* Query Execution Controls */}
           <SearchControlBar
             query={query}
             setQuery={setQuery}
@@ -346,10 +324,6 @@ export default function App() {
             isSearching={isSearching}
             targetField={targetField}
             setTargetField={setTargetField}
-            isLiveStreaming={isLiveStreaming}
-            setIsLiveStreaming={setIsLiveStreaming}
-            onOpenRules={() => setIsRulesModalOpen(true)}
-            rulesCount={customRules.filter(r => r.enabled !== false).length}
             streamMatchCount={searchResults.length}
           />
 
@@ -404,14 +378,6 @@ export default function App() {
         </main>
 
       </div>
-
-      {/* Custom Regex & Delimiter Rule Builder Modal */}
-      <CustomRuleBuilderModal
-        isOpen={isRulesModalOpen}
-        onClose={() => setIsRulesModalOpen(false)}
-        customRules={customRules}
-        onSaveRules={handleSaveCustomRules}
-      />
 
       {/* Raw Context Inspector Drawer */}
       <ContextDrawer

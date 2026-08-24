@@ -7,7 +7,7 @@ export default function TableView({
   hasSearched = false,
   onInspectContext
 }) {
-  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [copiedKeys, setCopiedKeys] = useState(() => new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [sortField, setSortField] = useState('domain');
@@ -16,8 +16,12 @@ export default function TableView({
   const handleCopy = (text, idx, fieldName) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    setCopiedIndex(`${idx}-${fieldName}`);
-    setTimeout(() => setCopiedIndex(null), 1500);
+    const key = `${idx}-${fieldName}`;
+    setCopiedKeys(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
   };
 
   // Sorting (Memoized for high performance with up to 50k rows)
@@ -118,6 +122,11 @@ export default function TableView({
               const isToken = !!row.token;
               const displaySecret = isToken ? row.token : row.password;
 
+              const isUserCopied = copiedKeys.has(`${globalIdx}-user`);
+              const isPassCopied = copiedKeys.has(`${globalIdx}-pass`);
+              const isUrlCopied = copiedKeys.has(`${globalIdx}-url`);
+              const isComboCopied = copiedKeys.has(`${globalIdx}-combo`);
+
               return (
                 <tr 
                   key={`${row.filePath}-${row.lineNumber}-${idx}`}
@@ -133,7 +142,9 @@ export default function TableView({
                     <div className="flex items-center gap-1.5 max-w-xs md:max-w-sm truncate">
                       <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                       <span 
-                        className="text-slate-200 hover:text-cyan-300 font-medium cursor-pointer transition-colors truncate" 
+                        className={`font-medium cursor-pointer transition-colors truncate ${
+                          isUrlCopied ? 'text-emerald-300 font-semibold' : 'text-slate-200 hover:text-cyan-300'
+                        }`} 
                         title={row.url}
                         onClick={() => handleCopy(row.url, globalIdx, 'url')}
                       >
@@ -157,7 +168,11 @@ export default function TableView({
                   <td className="px-3 whitespace-nowrap align-middle">
                     <div className="flex items-center gap-1.5 max-w-xs truncate">
                       <span 
-                        className={`truncate ${row.isEmail ? 'text-amber-300' : 'text-slate-200'} cursor-pointer hover:text-white transition-colors`}
+                        className={`truncate cursor-pointer transition-colors ${
+                          isUserCopied 
+                            ? 'text-emerald-300 font-semibold' 
+                            : (row.isEmail ? 'text-amber-300 hover:text-amber-200' : 'text-slate-200 hover:text-white')
+                        }`}
                         title={row.username}
                         onClick={() => handleCopy(row.username, globalIdx, 'user')}
                       >
@@ -166,10 +181,14 @@ export default function TableView({
                       {row.username && (
                         <button
                           onClick={() => handleCopy(row.username, globalIdx, 'user')}
-                          className="p-1 rounded hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 transition-colors shrink-0 cursor-pointer"
-                          title="Copy Username / Email"
+                          className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                            isUserCopied
+                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                              : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
+                          }`}
+                          title={isUserCopied ? "Copied to clipboard" : "Copy Username / Email"}
                         >
-                          {copiedIndex === `${globalIdx}-user` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {isUserCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       )}
                     </div>
@@ -180,11 +199,13 @@ export default function TableView({
                     <div className="flex items-center gap-1.5 max-w-xs md:max-w-sm truncate">
                       <Key className="w-3.5 h-3.5 text-violet-400 shrink-0" />
                       <span 
-                        className={`truncate font-mono ${
-                          displaySecret 
-                            ? 'text-cyan-200 bg-cyber-900/80 px-1.5 py-0.5 rounded border border-cyber-border' 
-                            : 'text-slate-600'
-                        } cursor-pointer hover:border-cyan-400 transition-colors`}
+                        className={`truncate font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                          isPassCopied
+                            ? 'text-emerald-300 bg-emerald-950/40 border-emerald-500/60 shadow-glow-emerald font-semibold'
+                            : (displaySecret 
+                                ? 'text-cyan-200 bg-cyber-900/80 border-cyber-border hover:border-cyan-400' 
+                                : 'text-slate-600 border-transparent')
+                        }`}
                         title={displaySecret}
                         onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
                       >
@@ -198,10 +219,14 @@ export default function TableView({
                       {displaySecret && (
                         <button
                           onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
-                          className="p-1 rounded hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 transition-colors shrink-0 cursor-pointer"
-                          title="Copy Password / Secret"
+                          className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                            isPassCopied
+                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                              : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
+                          }`}
+                          title={isPassCopied ? "Copied to clipboard" : "Copy Password / Secret"}
                         >
-                          {copiedIndex === `${globalIdx}-pass` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {isPassCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       )}
                     </div>
@@ -227,15 +252,19 @@ export default function TableView({
                             : `${row.username}:${displaySecret}`;
                           handleCopy(combo, globalIdx, 'combo');
                         }}
-                        className="px-2 py-0.5 rounded bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border text-[10px] font-mono transition-colors flex items-center gap-1 shrink-0"
-                        title="Copy Combo format"
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+                          isComboCopied
+                            ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald font-semibold'
+                            : 'bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border'
+                        }`}
+                        title={isComboCopied ? "Copied Combo to clipboard" : "Copy Combo format"}
                       >
-                        {copiedIndex === `${globalIdx}-combo` ? (
+                        {isComboCopied ? (
                           <Check className="w-3 h-3 text-emerald-400" />
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
-                        <span>Combo</span>
+                        <span>{isComboCopied ? 'Copied' : 'Combo'}</span>
                       </button>
 
                       {/* Inspect Context */}

@@ -110,7 +110,7 @@ export default function RawStreamView({
   hasSearched = false,
   onInspectContext
 }) {
-  const [copiedLine, setCopiedLine] = useState(null);
+  const [copiedLinesSet, setCopiedLinesSet] = useState(() => new Set());
   const [copiedAll, setCopiedAll] = useState(false);
   const [wrapLines, setWrapLines] = useState(false);
   const [filterText, setFilterText] = useState('');
@@ -136,8 +136,11 @@ export default function RawStreamView({
   const handleCopyRaw = (text, idx) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    setCopiedLine(idx);
-    setTimeout(() => setCopiedLine(null), 1500);
+    setCopiedLinesSet(prev => {
+      const next = new Set(prev);
+      next.add(idx);
+      return next;
+    });
   };
 
   const handleCopyAll = () => {
@@ -282,21 +285,21 @@ export default function RawStreamView({
         <div className={`hidden sm:block ${wrapLines ? 'w-full divide-y divide-cyber-border/20' : 'min-w-full w-max divide-y divide-cyber-border/20'}`}>
           {pageRows.map((item, idx) => {
             const globalIdx = startIndex + idx;
-            const isCopied = copiedLine === globalIdx;
+            const isCopied = copiedLinesSet.has(globalIdx);
 
             return (
               <div
                 key={`desktop-${item.filePath}-${item.lineNumber}-${globalIdx}`}
-                className={`group flex hover:bg-cyber-900/80 transition-colors border-l-2 border-transparent hover:border-cyan-400 py-1.5 px-3 gap-2.5 ${
-                  wrapLines ? 'w-full items-start' : 'items-center'
-                }`}
+                className={`group flex hover:bg-cyber-900/80 transition-colors border-l-2 py-1.5 px-3 gap-2.5 ${
+                  isCopied ? 'border-emerald-400 bg-emerald-950/20' : 'border-transparent hover:border-cyan-400'
+                } ${wrapLines ? 'w-full items-start' : 'items-center'}`}
               >
                 {/* 1. Left Pinned Gutter & Controls (ALWAYS on the left - never scrolled off!) */}
                 <div className={`flex items-center gap-2 shrink-0 select-none ${
                   !wrapLines ? 'sticky left-0 bg-cyber-950/95 z-10 py-0.5 pr-2.5 border-r border-cyber-border/40 shadow-sm' : 'pt-0.5'
                 }`}>
                   {/* Line Number */}
-                  <span className="w-8 text-right text-slate-600 group-hover:text-slate-400 text-[11px] font-mono">
+                  <span className={`w-8 text-right text-[11px] font-mono ${isCopied ? 'text-emerald-400 font-semibold' : 'text-slate-600 group-hover:text-slate-400'}`}>
                     {globalIdx + 1}
                   </span>
 
@@ -315,7 +318,11 @@ export default function RawStreamView({
                     <button
                       onClick={() => handleCopyRaw(item.raw, globalIdx)}
                       title="Copy raw line"
-                      className="p-1 rounded bg-cyber-850 hover:bg-cyber-750 text-slate-400 hover:text-cyan-300 border border-cyber-border text-[10px] transition-colors cursor-pointer"
+                      className={`p-1 rounded text-[10px] transition-colors cursor-pointer ${
+                        isCopied
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                          : 'bg-cyber-850 hover:bg-cyber-750 text-slate-400 hover:text-cyan-300 border border-cyber-border'
+                      }`}
                     >
                       {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     </button>
@@ -354,12 +361,14 @@ export default function RawStreamView({
         <div className="sm:hidden p-2 space-y-2">
           {pageRows.map((item, idx) => {
             const globalIdx = startIndex + idx;
-            const isCopied = copiedLine === globalIdx;
+            const isCopied = copiedLinesSet.has(globalIdx);
 
             return (
               <div
                 key={`mobile-${item.filePath}-${item.lineNumber}-${globalIdx}`}
-                className="p-2.5 rounded-xl bg-cyber-900/90 border border-cyber-border/70 shadow-md space-y-2"
+                className={`p-2.5 rounded-xl bg-cyber-900/90 border shadow-md space-y-2 ${
+                  isCopied ? 'border-emerald-500/60 bg-emerald-950/20' : 'border-cyber-border/70'
+                }`}
               >
                 {/* Mobile Card Header: File Info on Left, Actions on Right */}
                 <div className="flex items-center justify-between gap-2 border-b border-cyber-border/40 pb-1.5">
@@ -376,11 +385,15 @@ export default function RawStreamView({
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => handleCopyRaw(item.raw, globalIdx)}
-                      className="px-2 py-0.5 rounded bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border text-[10px] font-mono flex items-center gap-1 transition-colors"
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 transition-colors ${
+                        isCopied
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                          : 'bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border'
+                      }`}
                       title="Copy raw line"
                     >
                       {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>Copy</span>
+                      <span>{isCopied ? 'Copied' : 'Copy'}</span>
                     </button>
 
                     <button

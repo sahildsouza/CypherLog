@@ -159,10 +159,9 @@ export async function executeSearch({
   caseSensitive = false,
   invertMatch = false,
   maxResults = 50000,
-  targetField = 'ALL', // 'ALL' | 'URL' | 'USER' | 'PASS'
-  customRules = []
+  targetField = 'ALL' // 'ALL' | 'URL' | 'USER' | 'PASS'
 }) {
-  const cacheKey = `${query || ''}::${(targetFiles || []).join(',')}::${isRegex}::${caseSensitive}::${invertMatch}::${targetField}::${maxResults}::${customRules.length}`;
+  const cacheKey = `${query || ''}::${(targetFiles || []).join(',')}::${isRegex}::${caseSensitive}::${invertMatch}::${targetField}::${maxResults}`;
   const cachedResult = getCachedSearch(cacheKey);
   if (cachedResult) {
     return cachedResult;
@@ -265,7 +264,7 @@ export async function executeSearch({
   for (const match of rawMatches) {
     if (stealerFiles.has(match.relativeFile)) continue;
 
-    const parsed = parseLogLine(match.lineContent, match.lineNumber, match.relativeFile, customRules);
+    const parsed = parseLogLine(match.lineContent, match.lineNumber, match.relativeFile);
     if (!parsed) continue;
 
     // Field-level filtering if specified
@@ -350,7 +349,6 @@ export function streamSearch({
   invertMatch = false,
   maxResults = 50000,
   targetField = 'ALL',
-  customRules = [],
   onChunk,
   onDone,
   onError,
@@ -388,7 +386,7 @@ export function streamSearch({
   } catch (err) {
     runNodeStreamingFallback({
       query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
-      maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
+      maxResults, targetField, onChunk, onDone, onError, abortSignal, startTime
     });
     return;
   }
@@ -399,7 +397,7 @@ export function streamSearch({
     clearInterval(flushInterval);
     runNodeStreamingFallback({
       query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
-      maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
+      maxResults, targetField, onChunk, onDone, onError, abortSignal, startTime
     });
   });
 
@@ -436,7 +434,7 @@ export function streamSearch({
     if (!item) return;
 
     const { lineContent, lineNumber, relativeFile } = item;
-    const parsed = parseLogLine(lineContent, lineNumber, relativeFile, customRules);
+    const parsed = parseLogLine(lineContent, lineNumber, relativeFile);
     if (!parsed) return;
 
     // Field-level filter
@@ -590,7 +588,7 @@ async function runNodeStreamingFallback({
         if (invertMatch) isMatch = !isMatch;
 
         if (isMatch) {
-          const parsed = parseLogLine(line, lineNum, relFile, customRules);
+          const parsed = parseLogLine(line, lineNum, relFile);
           if (!parsed) continue;
 
           if (targetField !== 'ALL') {

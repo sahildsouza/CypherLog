@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Search, Sparkles, X, CornerDownLeft, Zap, Sliders } from 'lucide-react';
+import { Search, Sparkles, X, CornerDownLeft } from 'lucide-react';
 
 export default function SearchControlBar({
   query,
@@ -8,10 +8,6 @@ export default function SearchControlBar({
   isSearching,
   targetField,
   setTargetField,
-  isLiveStreaming = false,
-  setIsLiveStreaming,
-  onOpenRules,
-  rulesCount = 0,
   streamMatchCount = 0
 }) {
   const inputRef = useRef(null);
@@ -96,22 +92,20 @@ export default function SearchControlBar({
           </button>
         </div>
 
-        {/* Clean Controls Row: Target Field Tabs on Left, Stream & Rules on Right */}
-        <div className="flex items-center justify-between gap-2 text-xs font-mono">
-          
-          {/* Target Field Filter Selector */}
+        {/* Target Field Filter Selector */}
+        <div className="flex items-center gap-1 text-xs font-mono">
           <div className="flex items-center gap-0.5 sm:gap-1 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border">
             <span className="text-[10px] text-slate-500 px-1 uppercase hidden xs:inline">Field:</span>
             {[
-              { id: 'ALL', label: 'All' },
-              { id: 'URL', label: 'URL' },
-              { id: 'USER', label: 'User' },
-              { id: 'PASS', label: 'Pass' }
+              { id: 'ALL', label: 'All Fields' },
+              { id: 'URL', label: 'URL / Domain' },
+              { id: 'USER', label: 'Username' },
+              { id: 'PASS', label: 'Password' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setTargetField(tab.id)}
-                className={`px-2 sm:px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                className={`px-2.5 sm:px-3 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                   targetField === tab.id
                     ? 'bg-cyber-700 text-cyan-300 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -121,25 +115,6 @@ export default function SearchControlBar({
               </button>
             ))}
           </div>
-
-          {/* Right Action Buttons: Rules */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Custom Rules Builder Trigger */}
-            <button
-              onClick={onOpenRules}
-              title="Custom Delimiter & Regex Parser Rules"
-              className="px-2.5 sm:px-3 py-1 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-cyan-300 transition-colors flex items-center gap-1.5 text-[11px] font-medium cursor-pointer"
-            >
-              <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Rules</span>
-              {rulesCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 text-[9px] font-bold border border-cyan-500/40">
-                  {rulesCount}
-                </span>
-              )}
-            </button>
-          </div>
-
         </div>
 
       </div>

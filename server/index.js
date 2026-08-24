@@ -6,7 +6,6 @@ import readline from 'readline';
 import { fileURLToPath } from 'url';
 import { getBaseLogDir, setBaseLogDir, validateSafePath } from './utils/pathSecurity.js';
 import { executeSearch, streamSearch, getContextLines } from './utils/searchEngine.js';
-import { testParserRule } from './utils/logParser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -276,19 +275,6 @@ app.get('/api/search/stream', async (req, res) => {
     } else {
       res.end();
     }
-  }
-});
-
-/**
- * 2c. Custom Parsing Rule Tester Endpoint
- */
-app.post('/api/rules/test', (req, res) => {
-  try {
-    const { rule, sampleLine } = req.body;
-    const testResult = testParserRule(rule, sampleLine);
-    res.json(testResult);
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
   }
 });
 
