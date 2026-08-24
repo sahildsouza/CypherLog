@@ -49,6 +49,66 @@ export function getRipgrepBinary() {
 }
 
 /**
+ * Accurately parses a line from ripgrep stdout (<filePath>:<lineNumber>:<lineContent> or <lineNumber>:<lineContent>)
+ * Correctly handles Windows drive letters (C:\ or C:/), Unix paths (/...), and colons in line content.
+ */
+function parseRipgrepOutputLine(line, baseDir, fallbackPath = '') {
+  if (!line || !line.trim()) return null;
+
+  let rawPath = '';
+  let lineNumber = 1;
+  let lineContent = '';
+
+  // 1. Match full path + line number + content: ^(.+?):(\d+):([\s\S]*)$
+  const matchFull = line.match(/^(.+?):(\d+):([\s\S]*)$/);
+  if (matchFull) {
+    rawPath = matchFull[1];
+    lineNumber = parseInt(matchFull[2], 10);
+    lineContent = matchFull[3];
+  } else {
+    // 2. Match single-file output without path: ^(\d+):([\s\S]*)$
+    const matchSingle = line.match(/^(\d+):([\s\S]*)$/);
+    if (matchSingle) {
+      rawPath = fallbackPath || 'log.txt';
+      lineNumber = parseInt(matchSingle[1], 10);
+      lineContent = matchSingle[2];
+    } else {
+      return null;
+    }
+  }
+
+  if (isNaN(lineNumber)) return null;
+
+  let relativeFile = rawPath;
+  if (baseDir) {
+    try {
+      const canonicalBase = path.resolve(baseDir);
+      const canonicalFile = path.resolve(rawPath);
+      const isWindows = process.platform === 'win32';
+      const fileLower = isWindows ? canonicalFile.toLowerCase() : canonicalFile;
+      const baseLower = isWindows ? canonicalBase.toLowerCase() : canonicalBase;
+
+      if (fileLower.startsWith(baseLower)) {
+        relativeFile = path.relative(canonicalBase, canonicalFile).replace(/\\/g, '/');
+      } else {
+        relativeFile = path.basename(rawPath);
+      }
+    } catch {
+      relativeFile = path.basename(rawPath);
+    }
+  } else {
+    relativeFile = path.basename(rawPath);
+  }
+
+  return {
+    filePath: rawPath,
+    relativeFile: relativeFile || path.basename(rawPath),
+    lineNumber,
+    lineContent
+  };
+}
+
+/**
  * Execute high-speed search across single or multiple files using ripgrep or stream engine
  */
 export async function executeSearch({
@@ -78,6 +138,26 @@ export async function executeSearch({
     }
   }
 
+  // If target files specified, check for multi-line stealer logs
+  let stealerParsedResults = [];
+  if (targetFiles.length > 0) {
+    for (const f of targetFiles) {
+      try {
+        if (fs.existsSync(f)) {
+          const content = fs.readFileSync(f, 'utf8');
+          // Check if file contains multi-line stealer pattern (URL: ... \n Username: ...)
+          if (/(?:URL|Host|Site):\s*https?:\/\//i.test(content) && /(?:USER|Username|Login):\s*/i.test(content)) {
+            const relPath = baseDir ? path.relative(baseDir, f).replace(/\\/g, '/') : path.basename(f);
+            const blocks = parseMultiLineStealerBlocks(content, relPath);
+            if (blocks.length > 0) {
+              stealerParsedResults.push(...blocks);
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
   // Try Ripgrep first
   try {
     rawMatches = await runRipgrep({
@@ -90,10 +170,11 @@ export async function executeSearch({
       maxResults
     });
   } catch (rgError) {
-    // Fallback to ultra-fast pure Node streaming search (guaranteed on all platforms including Termux)
+    // Fallback to ultra-fast pure Node streaming search
     rawMatches = await runStreamingSearch({
       query,
       targetFiles,
+      baseDir,
       isRegex,
       caseSensitive,
       invertMatch,
@@ -101,13 +182,46 @@ export async function executeSearch({
     });
   }
 
-  // Parse matches into structured payloads
+  // If we found multi-line stealer blocks in target file and rawMatches produced single line fragments, use stealer blocks
   const parsedResults = [];
   const domainCounts = {};
   const strengthCounts = { 'Very Strong': 0, 'Strong': 0, 'Medium': 0, 'Weak': 0, 'None': 0, 'Cryptographic': 0, 'API Key': 0 };
   const fileDistribution = {};
+  const stealerFiles = new Set(stealerParsedResults.map(s => s.filePath));
 
+  if (stealerParsedResults.length > 0) {
+    const q = caseSensitive ? query : (query || '').toLowerCase();
+    for (const block of stealerParsedResults) {
+      if (q) {
+        const text = caseSensitive ? block.raw : block.raw.toLowerCase();
+        if (!text.includes(q)) continue;
+      }
+
+      if (targetField !== 'ALL') {
+        let matchField = false;
+        if (targetField === 'URL' && (caseSensitive ? block.url : block.url.toLowerCase()).includes(q)) matchField = true;
+        if (targetField === 'USER' && (caseSensitive ? block.username : block.username.toLowerCase()).includes(q)) matchField = true;
+        if (targetField === 'PASS' && (caseSensitive ? block.password : block.password.toLowerCase()).includes(q)) matchField = true;
+        if (!matchField) continue;
+      }
+
+      parsedResults.push(block);
+
+      const domain = block.domain || 'Other';
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+
+      const strengthLevel = block.strength?.level || 'None';
+      strengthCounts[strengthLevel] = (strengthCounts[strengthLevel] || 0) + 1;
+
+      const relFile = block.filePath || 'unknown.txt';
+      fileDistribution[relFile] = (fileDistribution[relFile] || 0) + 1;
+    }
+  }
+
+  // Standard single-line logs / token parser (skip files already processed as full multi-line stealer blocks)
   for (const match of rawMatches) {
+    if (stealerFiles.has(match.relativeFile)) continue;
+
     const parsed = parseLogLine(match.lineContent, match.lineNumber, match.relativeFile, customRules);
     if (!parsed) continue;
 
@@ -158,7 +272,7 @@ export async function executeSearch({
       executionTimeMs: Math.round(executionTimeMs * 100) / 100,
       totalMatches: parsedResults.length,
       uniqueMatches: deduplicatedResults.length,
-      filesScanned: filesScannedCount,
+      filesScanned: filesScannedCount || 1,
       totalSizeScannedBytes: totalBytesScanned,
       throughputMBs: Math.round(throughputMBs * 100) / 100
     },
@@ -200,6 +314,7 @@ export function streamSearch({
   const bin = getRipgrepBinary();
 
   const args = [
+    '-H', // ALWAYS output full filename prefix
     '-n',
     '--no-heading',
     '--color=never',
@@ -222,7 +337,6 @@ export function streamSearch({
   try {
     child = spawn(bin, args, { windowsHide: true });
   } catch (err) {
-    // Fallback to pure Node.js streaming search
     runNodeStreamingFallback({
       query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
       maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
@@ -234,7 +348,6 @@ export function streamSearch({
   child.on('error', (err) => {
     spawnedFailed = true;
     clearInterval(flushInterval);
-    // If spawning failed (e.g. rg not found in PATH on Termux), fallback seamlessly
     runNodeStreamingFallback({
       query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, 
       maxResults, targetField, customRules, onChunk, onDone, onError, abortSignal, startTime
@@ -270,39 +383,10 @@ export function streamSearch({
   const flushInterval = setInterval(flushChunk, 60);
 
   rl.on('line', (line) => {
-    if (!line.trim()) return;
+    const item = parseRipgrepOutputLine(line, baseDir, targetFiles[0]);
+    if (!item) return;
 
-    let filePath = '';
-    let rest = line;
-
-    if (/^[a-zA-Z]:\\/.test(line)) {
-      const drivePrefix = line.slice(0, 2);
-      const afterDrive = line.slice(2);
-      const firstColon = afterDrive.indexOf(':');
-      if (firstColon !== -1) {
-        filePath = drivePrefix + afterDrive.slice(0, firstColon);
-        rest = afterDrive.slice(firstColon + 1);
-      }
-    } else {
-      const firstColon = line.indexOf(':');
-      if (firstColon !== -1) {
-        filePath = line.slice(0, firstColon);
-        rest = line.slice(firstColon + 1);
-      }
-    }
-
-    const secondColon = rest.indexOf(':');
-    if (secondColon === -1) return;
-
-    const lineNumber = parseInt(rest.slice(0, secondColon), 10);
-    const lineContent = rest.slice(secondColon + 1);
-
-    if (isNaN(lineNumber)) return;
-
-    const relativeFile = baseDir 
-      ? path.relative(baseDir, filePath).replace(/\\/g, '/')
-      : path.basename(filePath);
-
+    const { lineContent, lineNumber, relativeFile } = item;
     const parsed = parseLogLine(lineContent, lineNumber, relativeFile, customRules);
     if (!parsed) return;
 
@@ -377,7 +461,6 @@ async function runNodeStreamingFallback({
   try {
     let filesToScan = targetFiles;
     if (!filesToScan || filesToScan.length === 0) {
-      // Find files recursively
       const findTxtFiles = (dir) => {
         let results = [];
         try {
@@ -414,9 +497,26 @@ async function runNodeStreamingFallback({
       if (abortSignal?.aborted) break;
       if (!fs.existsSync(filePath)) continue;
 
-      const relFile = baseDir 
-        ? path.relative(baseDir, filePath).replace(/\\/g, '/')
-        : path.basename(filePath);
+      let relFile = filePath;
+      if (baseDir) {
+        try {
+          const canonicalBase = path.resolve(baseDir);
+          const canonicalFile = path.resolve(filePath);
+          const isWindows = process.platform === 'win32';
+          const fileLower = isWindows ? canonicalFile.toLowerCase() : canonicalFile;
+          const baseLower = isWindows ? canonicalBase.toLowerCase() : canonicalBase;
+
+          if (fileLower.startsWith(baseLower)) {
+            relFile = path.relative(canonicalBase, canonicalFile).replace(/\\/g, '/');
+          } else {
+            relFile = path.basename(filePath);
+          }
+        } catch {
+          relFile = path.basename(filePath);
+        }
+      } else {
+        relFile = path.basename(filePath);
+      }
 
       const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
       const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -513,6 +613,7 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
   return new Promise((resolve, reject) => {
     const bin = getRipgrepBinary();
     const args = [
+      '-H', // ALWAYS include filename in output
       '-n', // line numbers
       '--no-heading',
       '--color=never',
@@ -543,52 +644,14 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
       const lines = (stdout || '').split(/\r?\n/);
 
       for (const line of lines) {
-        if (!line.trim()) continue;
-
-        let filePath = '';
-        let rest = line;
-
-        if (/^[a-zA-Z]:\\/.test(line)) {
-          const drivePrefix = line.slice(0, 2);
-          const afterDrive = line.slice(2);
-          const firstColon = afterDrive.indexOf(':');
-          if (firstColon !== -1) {
-            filePath = drivePrefix + afterDrive.slice(0, firstColon);
-            rest = afterDrive.slice(firstColon + 1);
-          }
-        } else {
-          const firstColon = line.indexOf(':');
-          if (firstColon !== -1) {
-            filePath = line.slice(0, firstColon);
-            rest = line.slice(firstColon + 1);
-          }
-        }
-
-        let lineNumber = 1;
-        let lineContent = rest;
-
-        const secondColon = rest.indexOf(':');
-        if (secondColon !== -1) {
-          const numStr = rest.slice(0, secondColon);
-          const parsedNum = parseInt(numStr, 10);
-          if (!isNaN(parsedNum)) {
-            lineNumber = parsedNum;
-            lineContent = rest.slice(secondColon + 1);
-          }
-        }
-
-        let relativeFile = filePath;
-        if (baseDir && filePath.startsWith(baseDir)) {
-          relativeFile = path.relative(baseDir, filePath).replace(/\\/g, '/');
-        } else {
-          relativeFile = path.basename(filePath);
-        }
+        const item = parseRipgrepOutputLine(line, baseDir, targetFiles[0]);
+        if (!item) continue;
 
         matches.push({
-          absolutePath: filePath,
-          relativeFile,
-          lineNumber,
-          lineContent
+          absolutePath: item.filePath,
+          relativeFile: item.relativeFile,
+          lineNumber: item.lineNumber,
+          lineContent: item.lineContent
         });
 
         if (matches.length >= maxResults) break;
@@ -602,7 +665,7 @@ function runRipgrep({ query, targetFiles, baseDir, isRegex, caseSensitive, inver
 /**
  * High-performance streaming fallback search in Node.js
  */
-async function runStreamingSearch({ query, targetFiles, isRegex, caseSensitive, invertMatch, maxResults }) {
+async function runStreamingSearch({ query, targetFiles, baseDir, isRegex, caseSensitive, invertMatch, maxResults }) {
   const matches = [];
   let regex = null;
 
@@ -615,11 +678,31 @@ async function runStreamingSearch({ query, targetFiles, isRegex, caseSensitive, 
   for (const filePath of targetFiles) {
     if (!fs.existsSync(filePath)) continue;
 
+    let relFile = filePath;
+    if (baseDir) {
+      try {
+        const canonicalBase = path.resolve(baseDir);
+        const canonicalFile = path.resolve(filePath);
+        const isWindows = process.platform === 'win32';
+        const fileLower = isWindows ? canonicalFile.toLowerCase() : canonicalFile;
+        const baseLower = isWindows ? canonicalBase.toLowerCase() : canonicalBase;
+
+        if (fileLower.startsWith(baseLower)) {
+          relFile = path.relative(canonicalBase, canonicalFile).replace(/\\/g, '/');
+        } else {
+          relFile = path.basename(filePath);
+        }
+      } catch {
+        relFile = path.basename(filePath);
+      }
+    } else {
+      relFile = path.basename(filePath);
+    }
+
     const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
     let lineNum = 0;
-    const relName = path.basename(filePath);
 
     for await (const line of rl) {
       lineNum++;
@@ -637,7 +720,7 @@ async function runStreamingSearch({ query, targetFiles, isRegex, caseSensitive, 
       if (isMatch) {
         matches.push({
           absolutePath: filePath,
-          relativeFile: relName,
+          relativeFile: relFile,
           lineNumber: lineNum,
           lineContent: line
         });
@@ -659,7 +742,7 @@ async function runStreamingSearch({ query, targetFiles, isRegex, caseSensitive, 
  */
 export async function getContextLines(filePath, lineNumber, radius = 5) {
   if (!fs.existsSync(filePath)) {
-    throw new Error('File not found');
+    throw new Error(`File not found: ${filePath}`);
   }
 
   const targetLine = parseInt(lineNumber, 10);

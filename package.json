@@ -6,7 +6,7 @@
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix client install",
     "build": "npm --prefix client run build",
-    "start": "node server/index.js",
+    "start": "node --watch server/index.js",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "test": "node server/test/e2e.test.js"

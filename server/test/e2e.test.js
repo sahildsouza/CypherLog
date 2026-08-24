@@ -1,9 +1,21 @@
 import assert from 'assert';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const BASE_URL = 'http://localhost:4000';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEFAULT_LOGS_DIR = path.resolve(__dirname, '../../logs');
 
 async function runE2ETests() {
   console.log('🚀 Running End-to-End API and Search Verification Tests...\n');
+
+  // Reset base log directory to default logs
+  await fetch(`${BASE_URL}/api/config/dir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newDir: DEFAULT_LOGS_DIR })
+  });
 
   // Test 1: File Discovery
   console.log('[Test 1] Testing Recursive File Discovery (/api/files)');
@@ -123,6 +135,35 @@ async function runE2ETests() {
   assert(spaRes.status === 200, 'Root SPA route should return 200');
   assert(spaHtml.includes('html') || spaHtml.includes('CipherLog') || spaHtml.includes('root'), 'Should serve React SPA HTML');
   console.log('✔ Unified server correctly serves compiled React SPA from port 4000');
+
+  // Test 10: Dynamic Directory Switch & Raw Context Inspection
+  console.log('\n[Test 10] Testing Dynamic Target Directory Switch & Context Inspection');
+  const customSubDir = path.join(DEFAULT_LOGS_DIR, 'stealer_dumps');
+  const setDirRes = await fetch(`${BASE_URL}/api/config/dir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newDir: customSubDir })
+  });
+  const setDirData = await setDirRes.json();
+  assert(setDirData.success === true, 'Setting custom target directory should succeed');
+
+  const filesAfterSwitch = await (await fetch(`${BASE_URL}/api/files`)).json();
+  assert(filesAfterSwitch.success === true, 'File discovery should succeed in new directory');
+  assert(filesAfterSwitch.files.length >= 1, 'Should find files in new directory');
+
+  const sampleFile = filesAfterSwitch.files[0].relativePath;
+  const inspectRes = await fetch(`${BASE_URL}/api/file/context?filePath=${encodeURIComponent(sampleFile)}&lineNumber=5&radius=5`);
+  const inspectData = await inspectRes.json();
+  assert(inspectData.success === true, 'Context inspection in custom target directory should succeed');
+  assert(inspectData.lines.length > 0, 'Should return context lines');
+  console.log(`✔ Switched to custom directory, discovered file: ${sampleFile}, inspected line 5 (+/-5) successfully`);
+
+  // Restore default directory
+  await fetch(`${BASE_URL}/api/config/dir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newDir: DEFAULT_LOGS_DIR })
+  });
 
   console.log('\n🎉 ALL END-TO-END TESTS PASSED WITH 100% SUCCESS!');
 }

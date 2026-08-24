@@ -316,7 +316,7 @@ export default function App() {
           selectedFiles={selectedFiles}
           onToggleSelectFile={handleToggleSelectFile}
           onClearFileSelection={handleClearFileSelection}
-          onQuickInspectFile={(file) => handleInspectContext({ filePath: file.relativePath, lineNumber: 1 })}
+          onQuickInspectFile={(file) => handleInspectContext({ filePath: file.relativePath || file.name || (typeof file === 'string' ? file : ''), lineNumber: 1 })}
           isLoading={isLoadingFiles}
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}

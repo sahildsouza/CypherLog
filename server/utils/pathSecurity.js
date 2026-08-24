@@ -61,8 +61,13 @@ export function validateSafePath(relativeOrFullPath) {
   // Ensure BASE_LOG_DIR is resolved to real canonical path
   const canonicalBase = path.resolve(BASE_LOG_DIR);
   
-  // Strict boundary check: targetPath must start with canonicalBase + path.sep or equal canonicalBase
-  const isWithinBase = targetPath === canonicalBase || targetPath.startsWith(canonicalBase + path.sep);
+  // Strict boundary check (case-insensitive on Windows)
+  const isWindows = process.platform === 'win32';
+  const targetNorm = isWindows ? targetPath.toLowerCase() : targetPath;
+  const baseNorm = isWindows ? canonicalBase.toLowerCase() : canonicalBase;
+  const sep = isWindows ? '\\' : path.sep;
+
+  const isWithinBase = targetNorm === baseNorm || targetNorm.startsWith(baseNorm + sep);
   
   if (!isWithinBase) {
     const error = new Error('Access Denied: Path Traversal attempt detected outside the authorized logs directory.');
