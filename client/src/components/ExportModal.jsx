@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { X, Download, Copy, Check, FileSpreadsheet, FileCode, FileText, Layers, Sparkles } from 'lucide-react';
+import { 
+  X, Download, Copy, Check, FileSpreadsheet, FileCode, 
+  FileText, Layers, Sparkles, Sliders, Terminal
+} from 'lucide-react';
 
 export default function ExportModal({
   isOpen,
@@ -8,9 +11,20 @@ export default function ExportModal({
   deduplicatedResults = [],
   currentQuery = ''
 }) {
-  const [format, setFormat] = useState('URL_USER_PASS'); // 'URL_USER_PASS' | 'USER_PASS' | 'EMAIL_PASS' | 'CSV' | 'JSON' | 'MARKDOWN'
+  const [format, setFormat] = useState('URL_USER_PASS'); // 'URL_USER_PASS' | 'USER_PASS' | 'EMAIL_PASS' | 'CSV' | 'JSON' | 'MARKDOWN' | 'CUSTOM'
+  const [delimiter, setDelimiter] = useState(':'); // ':' | '|' | ';' | '\t' | ','
   const [useDeduplicated, setUseDeduplicated] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Custom field toggles when in CUSTOM format
+  const [customFields, setCustomFields] = useState({
+    url: true,
+    domain: false,
+    username: true,
+    password: true,
+    filePath: false,
+    lineNumber: false
+  });
 
   const activeDataset = useDeduplicated ? deduplicatedResults : allResults;
 
@@ -18,25 +32,41 @@ export default function ExportModal({
   const formattedContent = useMemo(() => {
     if (!activeDataset || activeDataset.length === 0) return 'No entries to export.';
 
+    const sep = delimiter === '\\t' ? '\t' : delimiter;
+
     switch (format) {
       case 'URL_USER_PASS':
         return activeDataset
           .map(r => {
             const secret = r.token || r.password || '';
-            const u = r.url && r.url !== 'N/A' ? r.url : (r.domain !== 'Unknown' ? `https://${r.domain}` : 'http://unknown');
-            return `${u}:${r.username || ''}:${secret}`;
+            const u = r.url && r.url !== 'N/A' ? r.url : (r.domain && r.domain !== 'Unknown' && r.domain !== 'Generic Auth' ? `https://${r.domain}` : 'http://unknown');
+            return `${u}${sep}${r.username || ''}${sep}${secret}`;
           })
           .join('\n');
 
       case 'USER_PASS':
         return activeDataset
-          .map(r => `${r.username || ''}:${r.token || r.password || ''}`)
+          .map(r => `${r.username || ''}${sep}${r.token || r.password || ''}`)
           .join('\n');
 
       case 'EMAIL_PASS':
         return activeDataset
           .filter(r => r.isEmail)
-          .map(r => `${r.username}:${r.token || r.password || ''}`)
+          .map(r => `${r.username}${sep}${r.token || r.password || ''}`)
+          .join('\n');
+
+      case 'CUSTOM':
+        return activeDataset
+          .map(r => {
+            const parts = [];
+            if (customFields.url) parts.push(r.url || 'N/A');
+            if (customFields.domain) parts.push(r.domain || 'N/A');
+            if (customFields.username) parts.push(r.username || 'N/A');
+            if (customFields.password) parts.push(r.token || r.password || '');
+            if (customFields.filePath) parts.push(r.filePath || '');
+            if (customFields.lineNumber) parts.push(String(r.lineNumber || ''));
+            return parts.join(sep);
+          })
           .join('\n');
 
       case 'CSV': {
@@ -74,16 +104,16 @@ export default function ExportModal({
 
       case 'MARKDOWN': {
         const header = '| Domain | Username / Email | Password | Strength | Source File |\n| :--- | :--- | :--- | :--- | :--- |';
-        const rows = activeDataset.slice(0, 500).map(r => 
+        const rows = activeDataset.slice(0, 300).map(r => 
           `| ${r.domain || 'N/A'} | ${r.username || 'N/A'} | \`${r.token || r.password || ''}\` | ${r.strength?.level || 'None'} | \`${r.filePath}:${r.lineNumber}\` |`
         );
-        return [header, ...rows].join('\n') + (activeDataset.length > 500 ? '\n\n*(Truncated at 500 rows for Markdown preview)*' : '');
+        return [header, ...rows].join('\n') + (activeDataset.length > 300 ? '\n\n*(Truncated at 300 rows for Markdown preview)*' : '');
       }
 
       default:
         return '';
     }
-  }, [activeDataset, format]);
+  }, [activeDataset, format, delimiter, customFields]);
 
   if (!isOpen) return null;
 
@@ -93,17 +123,19 @@ export default function ExportModal({
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const getExtension = () => {
+    switch (format) {
+      case 'CSV': return 'csv';
+      case 'JSON': return 'json';
+      case 'MARKDOWN': return 'md';
+      default: return 'txt';
+    }
+  };
+
   const handleDownload = () => {
-    const extensions = {
-      URL_USER_PASS: 'txt',
-      USER_PASS: 'txt',
-      EMAIL_PASS: 'txt',
-      CSV: 'csv',
-      JSON: 'json',
-      MARKDOWN: 'md'
-    };
-    const ext = extensions[format] || 'txt';
-    const filename = `cipherlog_${currentQuery || 'export'}_${Date.now()}.${ext}`;
+    const ext = getExtension();
+    const cleanQ = currentQuery ? currentQuery.replace(/[^a-zA-Z0-9_-]/g, '_') : 'export';
+    const filename = `cipherlog_${cleanQ}_${Date.now()}.${ext}`;
     
     const blob = new Blob([formattedContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -117,114 +149,204 @@ export default function ExportModal({
   };
 
   const formats = [
-    { id: 'URL_USER_PASS', label: 'URL:User:Pass', desc: 'Standard combo/stealer format', icon: FileText },
-    { id: 'USER_PASS', label: 'User:Pass', desc: 'Login combinations only', icon: FileText },
-    { id: 'EMAIL_PASS', label: 'Email:Pass', desc: 'Filter strictly valid email combos', icon: FileText },
-    { id: 'CSV', label: 'CSV Spreadsheet', desc: 'Full metadata table with quotes', icon: FileSpreadsheet },
-    { id: 'JSON', label: 'JSON Array', desc: 'Structured JSON objects for pipelines', icon: FileCode },
-    { id: 'MARKDOWN', label: 'Markdown Table', desc: 'Formatted table for documentation', icon: FileText }
+    { id: 'URL_USER_PASS', label: 'URL:User:Pass', ext: 'txt' },
+    { id: 'USER_PASS', label: 'User:Pass', ext: 'txt' },
+    { id: 'EMAIL_PASS', label: 'Email:Pass', ext: 'txt' },
+    { id: 'CSV', label: 'CSV', ext: 'csv' },
+    { id: 'JSON', label: 'JSON', ext: 'json' },
+    { id: 'MARKDOWN', label: 'Markdown', ext: 'md' },
+    { id: 'CUSTOM', label: 'Custom', ext: 'txt' }
   ];
 
+  const totalLines = formattedContent ? formattedContent.split('\n').length : 0;
+  const payloadSizeKB = (formattedContent.length / 1024).toFixed(1);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-cyber-900 border border-cyber-border rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden font-mono">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none font-mono">
+      
+      {/* Ultra-Compact Modal Container */}
+      <div 
+        className="bg-cyber-900 border border-cyber-border rounded-xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
-        {/* Modal Header */}
-        <div className="p-4 bg-cyber-850 border-b border-cyber-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/30">
-              <Download className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100">Export & Bulk Copy Payload</h3>
-              <p className="text-[11px] text-slate-400">
-                {activeDataset.length.toLocaleString()} entries ready for export
-              </p>
-            </div>
+        {/* 1. Slim Header */}
+        <div className="px-3.5 py-2.5 bg-cyber-850 border-b border-cyber-border flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Download className="w-4 h-4 text-cyan-400 shrink-0" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-100 uppercase tracking-wide truncate">
+              Export Payload
+            </h3>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold whitespace-nowrap">
+              {activeDataset.length.toLocaleString()} entries
+            </span>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-cyber-750 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 rounded-lg hover:bg-cyber-750 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+            title="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+        {/* 2. Compact Body */}
+        <div className="p-3 sm:p-4 space-y-2.5 overflow-y-auto flex-1 text-xs">
           
-          {/* Format Selector Grid */}
-          <div>
-            <label className="text-slate-400 block mb-2 font-semibold">Select Output Format:</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {/* Format Selector Pills (Single row on desktop, 2 rows on mobile) */}
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Output Format
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
               {formats.map(f => {
                 const isSelected = format === f.id;
-                const Icon = f.icon;
                 return (
-                  <div
+                  <button
                     key={f.id}
                     onClick={() => setFormat(f.id)}
-                    className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
                       isSelected
-                        ? 'bg-violet-600/20 border-violet-500/80 text-violet-200 shadow-glow-violet'
-                        : 'bg-cyber-850 border-cyber-border text-slate-400 hover:bg-cyber-800'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 shadow-glow-cyan font-bold'
+                        : 'bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 font-bold text-slate-200">
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-violet-400' : 'text-slate-500'}`} />
-                      <span>{f.label}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-1 leading-tight">{f.desc}</div>
-                  </div>
+                    <span>{f.label}</span>
+                    <span className={`text-[9px] px-1 rounded ${isSelected ? 'bg-cyan-500/30 text-cyan-200' : 'bg-cyber-900 text-slate-500'}`}>
+                      .{f.ext}
+                    </span>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Scope Options: Deduplicated vs All */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-cyber-850 border border-cyber-border">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyber-accent" />
-              <div>
-                <div className="text-xs font-semibold text-slate-200">Deduplicate Extracted Entries</div>
-                <div className="text-[10px] text-slate-400">
-                  {useDeduplicated ? `Exporting ${deduplicatedResults.length} unique items` : `Exporting all ${allResults.length} raw matches`}
-                </div>
+          {/* Scope & Delimiter Strip */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-cyber-850/90 border border-cyber-border text-[11px]">
+            
+            {/* Scope */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-semibold text-[10px] uppercase">Scope:</span>
+              <div className="flex items-center bg-cyber-950 p-0.5 rounded-md border border-cyber-border">
+                <button
+                  onClick={() => setUseDeduplicated(true)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                    useDeduplicated
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Unique ({deduplicatedResults.length.toLocaleString()})
+                </button>
+                <button
+                  onClick={() => setUseDeduplicated(false)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                    !useDeduplicated
+                      ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-glow-violet'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All ({allResults.length.toLocaleString()})
+                </button>
               </div>
             </div>
 
-            <button
-              onClick={() => setUseDeduplicated(!useDeduplicated)}
-              className={`px-3 py-1 rounded-lg border font-semibold text-xs transition-colors ${
-                useDeduplicated
-                  ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300'
-                  : 'bg-cyber-800 border-cyber-border text-slate-400'
-              }`}
-            >
-              {useDeduplicated ? 'Unique Only' : 'Include Duplicates'}
-            </button>
+            {/* Delimiters */}
+            {(format === 'URL_USER_PASS' || format === 'USER_PASS' || format === 'EMAIL_PASS' || format === 'CUSTOM') && (
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-semibold text-[10px] uppercase">Delimiter:</span>
+                {[
+                  { label: ':', val: ':' },
+                  { label: '|', val: '|' },
+                  { label: ';', val: ';' },
+                  { label: '\\t', val: '\\t' },
+                  { label: ',', val: ',' }
+                ].map(d => (
+                  <button
+                    key={d.val}
+                    onClick={() => setDelimiter(d.val)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
+                      delimiter === d.val
+                        ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/60 shadow-glow-cyan'
+                        : 'bg-cyber-900 border border-cyber-border text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
           </div>
 
-          {/* Live Output Preview */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5 text-slate-400">
-              <span>Preview (first 100 lines):</span>
-              <span className="text-[10px] text-slate-500">{(formattedContent.length / 1024).toFixed(1)} KB</span>
+          {/* Custom Field Selector (Only for CUSTOM format) */}
+          {format === 'CUSTOM' && (
+            <div className="p-2.5 rounded-lg bg-cyber-850 border border-cyber-border space-y-1.5">
+              <div className="text-[10px] font-semibold text-slate-300 uppercase">Include Fields:</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                {[
+                  { key: 'url', label: 'URL' },
+                  { key: 'domain', label: 'Domain' },
+                  { key: 'username', label: 'User / Email' },
+                  { key: 'password', label: 'Password' },
+                  { key: 'filePath', label: 'File Path' },
+                  { key: 'lineNumber', label: 'Line Number' }
+                ].map(field => (
+                  <label 
+                    key={field.key} 
+                    className="flex items-center gap-1.5 p-1 rounded bg-cyber-900 border border-cyber-border/80 cursor-pointer select-none text-[10px]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={customFields[field.key]}
+                      onChange={(e) => setCustomFields({ ...customFields, [field.key]: e.target.checked })}
+                      className="accent-cyan-400 rounded"
+                    />
+                    <span className="text-slate-300">{field.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <textarea
-              readOnly
-              value={formattedContent.split('\n').slice(0, 100).join('\n') + (formattedContent.split('\n').length > 100 ? '\n... [more entries]' : '')}
-              className="w-full h-40 p-3 rounded-xl bg-cyber-950 border border-cyber-border text-cyan-200 font-mono text-[11px] select-text resize-none focus:outline-none"
-            />
+          )}
+
+          {/* Live Code Preview (No-wrap horizontal scrolling code box) */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <div className="flex items-center gap-1 font-semibold">
+                <Terminal className="w-3 h-3 text-cyan-400" />
+                <span>Payload Preview</span>
+                <span className="text-slate-500 font-normal">
+                  ({totalLines.toLocaleString()} lines • {payloadSizeKB} KB)
+                </span>
+              </div>
+
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 cursor-pointer font-semibold"
+                title="Quick copy entire payload"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copied ? 'Copied!' : 'Copy Preview'}</span>
+              </button>
+            </div>
+
+            {/* Compact Code Box with Horizontal Scroll */}
+            <div className="rounded-lg bg-cyber-950 border border-cyber-border p-2 overflow-x-auto max-h-36 sm:max-h-40 shadow-inner">
+              <pre className="font-mono text-[11px] text-cyan-200 whitespace-pre select-text leading-tight">
+                {formattedContent.split('\n').slice(0, 50).join('\n') + (formattedContent.split('\n').length > 50 ? `\n... [and ${formattedContent.split('\n').length - 50} more entries]` : '')}
+              </pre>
+            </div>
           </div>
 
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-4 bg-cyber-850 border-t border-cyber-border flex items-center justify-between text-xs">
+        {/* 3. Slim Footer */}
+        <div className="px-3.5 py-2.5 bg-cyber-850 border-t border-cyber-border flex items-center justify-between gap-2 shrink-0 text-xs">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-cyber-800 hover:bg-cyber-750 text-slate-300 border border-cyber-border"
+            className="px-3 py-1.5 rounded-lg bg-cyber-800 hover:bg-cyber-750 text-slate-400 hover:text-slate-200 border border-cyber-border font-medium transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -232,23 +354,24 @@ export default function ExportModal({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyber-750 hover:bg-cyber-700 text-cyan-300 border border-cyber-border transition-colors font-semibold"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-750 hover:bg-cyber-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 font-bold transition-all cursor-pointer"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Copied to Clipboard!' : 'Copy to Clipboard'}</span>
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Copied!' : 'Copy All'}</span>
             </button>
 
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold shadow-glow-violet transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold shadow-glow-violet active:scale-95 transition-all cursor-pointer"
             >
-              <Download className="w-4 h-4" />
-              <span>Download File</span>
+              <Download className="w-3.5 h-3.5" />
+              <span>Download .{getExtension()}</span>
             </button>
           </div>
         </div>
 
       </div>
+
     </div>
   );
 }
