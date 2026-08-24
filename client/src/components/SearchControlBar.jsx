@@ -136,11 +136,11 @@ export default function SearchControlBar({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
               <span className="font-semibold text-slate-200">
-                {isLiveStreaming ? 'Streaming matching records in real-time...' : 'Scanning dataset with ripgrep multi-threaded engine...'}
+                Streaming matching records in real-time...
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {isLiveStreaming && streamMatchCount > 0 && (
+              {streamMatchCount > 0 && (
                 <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold">
                   {streamMatchCount.toLocaleString()} matches streamed
                 </span>
