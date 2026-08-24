@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Copy, Check, Eye, EyeOff, ExternalLink, ShieldAlert, Key, Globe, FileText, ChevronLeft, ChevronRight, Hash, Search } from 'lucide-react';
+import { Copy, Check, ExternalLink, ShieldAlert, Key, Globe, FileText, ChevronLeft, ChevronRight, Hash, Search } from 'lucide-react';
 
 export default function TableView({
   results = [],
@@ -8,7 +8,6 @@ export default function TableView({
   onInspectContext
 }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
-  const [revealedRows, setRevealedRows] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [sortField, setSortField] = useState('domain');
@@ -19,10 +18,6 @@ export default function TableView({
     navigator.clipboard.writeText(text);
     setCopiedIndex(`${idx}-${fieldName}`);
     setTimeout(() => setCopiedIndex(null), 1500);
-  };
-
-  const toggleRowReveal = (idx) => {
-    setRevealedRows(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
   // Sorting (Memoized for high performance with up to 50k rows)
@@ -119,7 +114,7 @@ export default function TableView({
           <tbody className="divide-y divide-cyber-border/40">
             {currentRows.map((row, idx) => {
               const globalIdx = startIndex + idx;
-              const isPasswordRevealed = !maskPasswords || revealedRows[globalIdx];
+              const isPasswordRevealed = !maskPasswords;
               const isToken = !!row.token;
               const displaySecret = isToken ? row.token : row.password;
 
@@ -199,16 +194,6 @@ export default function TableView({
                           '<empty>'
                         )}
                       </span>
-
-                      {displaySecret && (
-                        <button
-                          onClick={() => toggleRowReveal(globalIdx)}
-                          className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-cyber-800 transition-colors shrink-0 cursor-pointer"
-                          title={isPasswordRevealed ? 'Hide Password' : 'Show Password'}
-                        >
-                          {isPasswordRevealed ? <EyeOff className="w-3 h-3 text-cyan-400" /> : <Eye className="w-3 h-3" />}
-                        </button>
-                      )}
 
                       {displaySecret && (
                         <button
