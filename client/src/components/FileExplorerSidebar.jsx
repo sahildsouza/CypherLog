@@ -232,24 +232,24 @@ export default function FileExplorerSidebar({
                             <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-400'}`} />
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
                                 <span 
-                                  className={`truncate font-medium text-xs ${isSelected ? 'text-cyan-200 font-semibold' : 'text-slate-200 group-hover:text-white'}`}
+                                  className={`truncate font-medium text-xs whitespace-nowrap ${isSelected ? 'text-cyan-200 font-semibold' : 'text-slate-200 group-hover:text-white'}`}
                                   title={file.name}
                                 >
                                   {file.name}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
-                                <span>{file.formattedSize}</span>
-                                <span className="text-slate-600">•</span>
-                                <span className="text-emerald-400 font-semibold">{file.lines.toLocaleString()} lines</span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                                <span className="shrink-0">{file.formattedSize}</span>
+                                <span className="text-slate-600 shrink-0">•</span>
+                                <span className="text-emerald-400 font-semibold shrink-0">{file.lines.toLocaleString()} lines</span>
                               </div>
                             </div>
                           </div>
 
                           {/* Right: Tag Badge & Quick Inspect */}
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
                             {tagBadge}
                             <button
                               type="button"
@@ -279,14 +279,14 @@ export default function FileExplorerSidebar({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex lg:w-80 flex-col border-r border-cyber-border bg-cyber-900/60 shrink-0 h-full max-h-[calc(100vh-65px)] overflow-hidden">
+      <aside className="hidden lg:flex lg:w-84 xl:w-90 flex-col border-r border-cyber-border bg-cyber-900/60 shrink-0 h-full max-h-[calc(100vh-65px)] overflow-hidden">
         {sidebarContent}
       </aside>
 
       {/* Mobile Slide-in Drawer with Backdrop */}
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-80 max-w-[85vw] h-full shadow-2xl border-r border-cyber-border bg-cyber-900 animate-in slide-in-from-left duration-200 flex flex-col">
+          <div className="w-84 max-w-[90vw] h-full shadow-2xl border-r border-cyber-border bg-cyber-900 animate-in slide-in-from-left duration-200 flex flex-col">
             {sidebarContent}
           </div>
           <div className="flex-1 cursor-pointer" onClick={onCloseMobile} />
