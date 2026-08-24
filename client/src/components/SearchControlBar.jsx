@@ -43,13 +43,13 @@ export default function SearchControlBar({
     <div className="relative border-b border-cyber-border bg-cyber-900/90 backdrop-blur-md">
       
       {/* Search Bar Controls Body */}
-      <div className="p-3 sm:p-4 flex flex-col gap-2.5">
+      <div className="p-2.5 sm:p-4 flex flex-col gap-2 sm:gap-2.5">
         
         {/* Main Search Input Row */}
-        <div className="flex items-stretch gap-2">
+        <div className="flex items-stretch gap-1.5 sm:gap-2">
           <div className="relative flex-1 min-w-0">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-cyber-accent" />
+            <div className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+              <Search className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-cyber-accent" />
             </div>
             
             <input
@@ -59,11 +59,11 @@ export default function SearchControlBar({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search domains, users, passwords, tokens..."
-              className="w-full pl-9 sm:pl-11 pr-8 sm:pr-20 py-2.5 sm:py-3 rounded-xl glass-input text-xs sm:text-sm font-mono text-slate-100 placeholder-slate-500 shadow-inner focus:shadow-glow-cyan transition-all"
+              className="w-full pl-8 sm:pl-11 pr-7 sm:pr-20 py-2 sm:py-3 rounded-xl glass-input text-xs sm:text-sm font-mono text-slate-100 placeholder-slate-500 shadow-inner focus:shadow-glow-cyan transition-all"
             />
 
             {/* Clear Button & Shortcut Badge inside Input */}
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2 sm:right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {query && (
                 <button
                   onClick={() => { setQuery(''); inputRef.current?.focus(); }}
@@ -83,59 +83,59 @@ export default function SearchControlBar({
           <button
             onClick={() => onExecuteSearch()}
             disabled={isSearching}
-            className="flex items-center justify-center gap-1.5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs sm:text-sm tracking-wide transition-all shadow-glow-cyan disabled:opacity-50 shrink-0 select-none cursor-pointer"
+            className="flex items-center justify-center gap-1 sm:gap-1.5 px-3 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs sm:text-sm tracking-wide transition-all shadow-glow-cyan disabled:opacity-50 shrink-0 select-none cursor-pointer"
           >
             {isSearching ? (
-              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>SEARCH</span>
+                <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="text-xs sm:text-sm">SEARCH</span>
                 <CornerDownLeft className="hidden sm:inline w-3.5 h-3.5 opacity-70" />
               </>
             )}
           </button>
         </div>
 
-        {/* Combined 1-Line Control Strip: Fields Filter (Left) + Unique, Mask, Export (Right) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+        {/* Guaranteed Single-Line Control Strip for Mobile & Desktop (No Wrapping) */}
+        <div className="flex items-center justify-between gap-1 sm:gap-2 text-[10px] sm:text-xs font-mono w-full overflow-hidden flex-nowrap">
           
           {/* Target Field Filter Selector */}
-          <div className="flex items-center gap-0.5 sm:gap-1 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border">
-            <span className="text-[10px] text-slate-500 px-1 uppercase hidden xs:inline">Field:</span>
+          <div className="flex items-center gap-0.5 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border shrink-0">
             {[
-              { id: 'ALL', label: 'All Fields' },
-              { id: 'URL', label: 'URL' },
-              { id: 'USER', label: 'User' },
-              { id: 'PASS', label: 'Pass' }
+              { id: 'ALL', full: 'All Fields', short: 'All' },
+              { id: 'URL', full: 'URL', short: 'URL' },
+              { id: 'USER', full: 'User', short: 'User' },
+              { id: 'PASS', full: 'Pass', short: 'Pass' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setTargetField(tab.id)}
-                className={`px-2.5 sm:px-3 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`px-1.5 sm:px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-colors cursor-pointer shrink-0 ${
                   targetField === tab.id
                     ? 'bg-cyber-700 text-cyan-300 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {tab.label}
+                <span className="sm:hidden">{tab.short}</span>
+                <span className="hidden sm:inline">{tab.full}</span>
               </button>
             ))}
           </div>
 
           {/* Right Action Buttons: Unique + Mask + Export in 1 Line */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Deduplication Toggle Button */}
             <button
               onClick={() => setIsDeduplicated(!isDeduplicated)}
               title="Toggle deduplication to remove duplicate combos"
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-lg border text-[10px] sm:text-[11px] font-medium transition-all cursor-pointer shrink-0 ${
                 isDeduplicated
                   ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-200 shadow-glow-cyan'
                   : 'bg-cyber-850 hover:bg-cyber-800 border-cyber-border text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Layers className="w-3.5 h-3.5 text-cyber-accent shrink-0" />
+              <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyber-accent shrink-0" />
               <span>Unique</span>
             </button>
 
@@ -143,16 +143,16 @@ export default function SearchControlBar({
             <button
               onClick={() => setMaskPasswords(!maskPasswords)}
               title="Mask or unmask passwords across the interface"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-slate-100 transition-colors text-[11px] cursor-pointer"
+              className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-slate-100 transition-colors text-[10px] sm:text-[11px] cursor-pointer shrink-0"
             >
               {maskPasswords ? (
                 <>
-                  <Eye className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
                   <span>Reveal</span>
                 </>
               ) : (
                 <>
-                  <EyeOff className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <EyeOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400 shrink-0" />
                   <span>Mask</span>
                 </>
               )}
@@ -162,9 +162,9 @@ export default function SearchControlBar({
             <button
               onClick={onOpenExport}
               title="Export search results to CSV / JSON / TXT"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-glow-violet transition-all text-[11px] cursor-pointer"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-glow-violet transition-all text-[10px] sm:text-[11px] cursor-pointer shrink-0"
             >
-              <Download className="w-3.5 h-3.5 shrink-0" />
+              <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Export</span>
             </button>
           </div>
