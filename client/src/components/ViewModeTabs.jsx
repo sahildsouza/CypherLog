@@ -1,6 +1,32 @@
 import React, { useEffect } from 'react';
 import { Table, Terminal, BarChart3, Timer, Database } from 'lucide-react';
 
+/**
+ * Format execution time dynamically:
+ * - < 1s: "45 ms"
+ * - 1s - 59s: "2.35 s"
+ * - 1m - 59m: "1m 14s"
+ * - >= 1hr: "1h 22m"
+ */
+function formatExecutionTime(ms) {
+  if (ms === undefined || ms === null || isNaN(ms)) return '0 ms';
+  if (ms < 1000) {
+    return `${Math.round(ms * 10) / 10} ms`;
+  }
+  const totalSeconds = ms / 1000;
+  if (totalSeconds < 60) {
+    return `${totalSeconds.toFixed(2)} s`;
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = Math.round(totalSeconds % 60);
+  if (totalMinutes < 60) {
+    return remainingSeconds > 0 ? `${totalMinutes}m ${remainingSeconds}s` : `${totalMinutes}m`;
+  }
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return remainingMinutes > 0 ? `${totalHours}h ${remainingMinutes}m` : `${totalHours}h`;
+}
+
 export default function ViewModeTabs({
   activeTab,
   setActiveTab,
@@ -59,9 +85,12 @@ export default function ViewModeTabs({
         {metrics ? (
           <>
             {/* Speed Badge */}
-            <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold shadow-glow-emerald">
+            <div 
+              className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold shadow-glow-emerald"
+              title={`Total query execution time: ${metrics.executionTimeMs} ms`}
+            >
               <Timer className="w-3.5 h-3.5" />
-              <span>{metrics.executionTimeMs} ms</span>
+              <span>{formatExecutionTime(metrics.executionTimeMs)}</span>
             </div>
 
             {/* Results Count */}
