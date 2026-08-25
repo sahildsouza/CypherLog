@@ -11,7 +11,9 @@ export default function AnalyticsView({
   hasSearched = false,
   onApplyDomainFilter
 }) {
-  // Compute in-depth credential and security telemetry from results in memory
+  const safeAnalytics = analytics || {};
+
+  // 1. Compute in-depth credential and security telemetry from results in memory
   const computedMetrics = useMemo(() => {
     if (!results || results.length === 0) return null;
 
@@ -100,6 +102,43 @@ export default function AnalyticsView({
     };
   }, [results]);
 
+  // 2. Extract or dynamically derive top domains from results
+  const topDomains = useMemo(() => {
+    if (Array.isArray(safeAnalytics.topDomains) && safeAnalytics.topDomains.length > 0) {
+      return safeAnalytics.topDomains;
+    }
+    if (!results || results.length === 0) return [];
+    // Fallback: derive from active results
+    const counts = {};
+    for (const r of results) {
+      const d = r.domain || 'Other';
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([domain, count]) => ({ domain, count }));
+  }, [safeAnalytics.topDomains, results]);
+
+  // 3. Extract or dynamically derive file distribution from results
+  const fileDistribution = useMemo(() => {
+    if (Array.isArray(safeAnalytics.fileDistribution) && safeAnalytics.fileDistribution.length > 0) {
+      return safeAnalytics.fileDistribution;
+    }
+    if (!results || results.length === 0) return [];
+    // Fallback: derive from active results
+    const counts = {};
+    for (const r of results) {
+      const f = r.filePath || 'logs.txt';
+      counts[f] = (counts[f] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([file, count]) => ({ file, count }));
+  }, [safeAnalytics.fileDistribution, results]);
+
+  // Early returns placed AFTER all hooks have executed unconditionally
   if (!results || results.length === 0) {
     if (!hasSearched) {
       return (
@@ -123,41 +162,6 @@ export default function AnalyticsView({
       </div>
     );
   }
-
-  const safeAnalytics = analytics || {};
-  
-  // Extract or dynamically derive top domains and file distribution from results
-  const topDomains = useMemo(() => {
-    if (Array.isArray(safeAnalytics.topDomains) && safeAnalytics.topDomains.length > 0) {
-      return safeAnalytics.topDomains;
-    }
-    // Fallback: derive from active results
-    const counts = {};
-    for (const r of results) {
-      const d = r.domain || 'Other';
-      counts[d] = (counts[d] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([domain, count]) => ({ domain, count }));
-  }, [safeAnalytics.topDomains, results]);
-
-  const fileDistribution = useMemo(() => {
-    if (Array.isArray(safeAnalytics.fileDistribution) && safeAnalytics.fileDistribution.length > 0) {
-      return safeAnalytics.fileDistribution;
-    }
-    // Fallback: derive from active results
-    const counts = {};
-    for (const r of results) {
-      const f = r.filePath || 'logs.txt';
-      counts[f] = (counts[f] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([file, count]) => ({ file, count }));
-  }, [safeAnalytics.fileDistribution, results]);
 
   const maxDomainCount = topDomains.length > 0 ? Math.max(...topDomains.map(d => d.count || 0), 1) : 1;
   const maxFileCount = fileDistribution.length > 0 ? Math.max(...fileDistribution.map(f => f.count || 0), 1) : 1;
