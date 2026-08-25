@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { 
   Globe, HardDrive, Filter, BarChart3, Layers, FileText, 
   ShieldAlert, ShieldCheck, Key, Lock, Mail, Cpu, Flame,
-  TrendingUp, CheckCircle2, AlertTriangle, Hash, Sparkles
+  TrendingUp, CheckCircle2, AlertTriangle, Hash, Sparkles,
+  Database, Timer
 } from 'lucide-react';
 
 export default function AnalyticsView({
