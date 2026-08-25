@@ -65,6 +65,29 @@ assert.strictEqual(parsed3.type, 'JWT_TOKEN');
 assert(parsed3.token.length > 50);
 console.log('✔ JWT secret detector passed');
 
+// Test Country Tagged URL Combo (e.g. DUMP ULP FR/DE/IN)
+const parsed4 = parseLogLine('FR https://www.resume-now.com/build-resume/final-resume:jatin2k3@gmail.com:bzejS#8F@!4hgpX', 4, 'test.txt');
+assert.strictEqual(parsed4.country, 'FR');
+assert.strictEqual(parsed4.domain, 'resume-now.com');
+assert.strictEqual(parsed4.username, 'jatin2k3@gmail.com');
+assert.strictEqual(parsed4.password, 'bzejS#8F@!4hgpX');
+assert.strictEqual(parsed4.isEmail, true);
+console.log('✔ Country-tagged ULP parser passed (FR/DE/IN prefixes)');
+
+// Test Email-Anchored Combo without protocol
+const parsed5 = parseLogLine('[US] paypal.com:admin@paypal.com:Super#Secret:Pass', 5, 'test.txt');
+assert.strictEqual(parsed5.country, 'US');
+assert.strictEqual(parsed5.domain, 'paypal.com');
+assert.strictEqual(parsed5.username, 'admin@paypal.com');
+assert.strictEqual(parsed5.password, 'Super#Secret:Pass');
+console.log('✔ Email-anchored tagged parser passed');
+
+// Test Server Log Noise Suppression
+const parsed6 = parseLogLine('127.0.0.1 - - [25/Aug/2026:12:00:00] "GET / HTTP/1.1" 200 123', 6, 'test.txt');
+assert.strictEqual(parsed6.type, 'RAW_LOG_ENTRY');
+assert.strictEqual(parsed6.username, '—');
+console.log('✔ Server access log noise filter passed');
+
 // 3. Search Engine Performance Test
 console.log('\n[Test 3] Search Engine Speed Benchmark');
 (async () => {

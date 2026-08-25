@@ -140,13 +140,21 @@ export default function TableView({
                   {/* Target URL / Domain */}
                   <td className="px-3 whitespace-nowrap align-middle">
                     <div className="flex items-center gap-1.5 max-w-xs md:max-w-sm truncate">
+                      {row.country && (
+                        <span 
+                          className="px-1.5 py-0.2 rounded bg-cyan-950/90 border border-cyan-500/40 text-cyan-300 font-mono text-[9px] font-bold uppercase tracking-wider shrink-0"
+                          title={`Country / Source: ${row.country}`}
+                        >
+                          {row.country}
+                        </span>
+                      )}
                       <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                       <span 
                         className={`font-medium cursor-pointer transition-colors truncate ${
                           isUrlCopied ? 'text-emerald-300 font-semibold' : 'text-slate-200 hover:text-cyan-300'
                         }`} 
-                        title={row.url}
-                        onClick={() => handleCopy(row.url, globalIdx, 'url')}
+                        title={row.url || row.domain}
+                        onClick={() => handleCopy(row.url || row.domain, globalIdx, 'url')}
                       >
                         {row.domain || row.url || 'N/A'}
                       </span>
@@ -167,29 +175,33 @@ export default function TableView({
                   {/* Username / Email */}
                   <td className="px-3 whitespace-nowrap align-middle">
                     <div className="flex items-center gap-1.5 max-w-xs truncate">
-                      <span 
-                        className={`truncate cursor-pointer transition-colors ${
-                          isUserCopied 
-                            ? 'text-emerald-300 font-semibold' 
-                            : (row.isEmail ? 'text-amber-300 hover:text-amber-200' : 'text-slate-200 hover:text-white')
-                        }`}
-                        title={row.username}
-                        onClick={() => handleCopy(row.username, globalIdx, 'user')}
-                      >
-                        {row.username || '<empty>'}
-                      </span>
-                      {row.username && (
-                        <button
-                          onClick={() => handleCopy(row.username, globalIdx, 'user')}
-                          className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
-                            isUserCopied
-                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
-                              : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
-                          }`}
-                          title={isUserCopied ? "Copied to clipboard" : "Copy Username / Email"}
-                        >
-                          {isUserCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
+                      {row.username && row.username !== '—' && row.username !== 'N/A' ? (
+                        <>
+                          <span 
+                            className={`truncate cursor-pointer transition-colors ${
+                              isUserCopied 
+                                ? 'text-emerald-300 font-semibold' 
+                                : (row.isEmail ? 'text-amber-300 hover:text-amber-200' : 'text-slate-200 hover:text-white')
+                            }`}
+                            title={row.username}
+                            onClick={() => handleCopy(row.username, globalIdx, 'user')}
+                          >
+                            {row.username}
+                          </span>
+                          <button
+                            onClick={() => handleCopy(row.username, globalIdx, 'user')}
+                            className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                              isUserCopied
+                                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                                : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
+                            }`}
+                            title={isUserCopied ? "Copied to clipboard" : "Copy Username / Email"}
+                          >
+                            {isUserCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-slate-600 font-mono text-xs">—</span>
                       )}
                     </div>
                   </td>
@@ -198,36 +210,34 @@ export default function TableView({
                   <td className="px-3 whitespace-nowrap align-middle">
                     <div className="flex items-center gap-1.5 max-w-xs md:max-w-sm truncate">
                       <Key className="w-3.5 h-3.5 text-violet-400 shrink-0" />
-                      <span 
-                        className={`truncate font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                          isPassCopied
-                            ? 'text-emerald-300 bg-emerald-950/40 border-emerald-500/60 shadow-glow-emerald font-semibold'
-                            : (displaySecret 
-                                ? 'text-cyan-200 bg-cyber-900/80 border-cyber-border hover:border-cyan-400' 
-                                : 'text-slate-600 border-transparent')
-                        }`}
-                        title={displaySecret}
-                        onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
-                      >
-                        {displaySecret ? (
-                          isPasswordRevealed ? displaySecret : '••••••••••••'
-                        ) : (
-                          '<empty>'
-                        )}
-                      </span>
+                      {displaySecret ? (
+                        <>
+                          <span 
+                            className={`truncate font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                              isPassCopied
+                                ? 'text-emerald-300 bg-emerald-950/40 border-emerald-500/60 shadow-glow-emerald font-semibold'
+                                : 'text-cyan-200 bg-cyber-900/80 border-cyber-border hover:border-cyan-400'
+                            }`}
+                            title={displaySecret}
+                            onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
+                          >
+                            {isPasswordRevealed ? displaySecret : '••••••••••••'}
+                          </span>
 
-                      {displaySecret && (
-                        <button
-                          onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
-                          className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
-                            isPassCopied
-                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
-                              : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
-                          }`}
-                          title={isPassCopied ? "Copied to clipboard" : "Copy Password / Secret"}
-                        >
-                          {isPassCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
+                          <button
+                            onClick={() => handleCopy(displaySecret, globalIdx, 'pass')}
+                            className={`p-1 rounded transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                              isPassCopied
+                                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald'
+                                : 'bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-cyan-300 border border-cyber-border'
+                            }`}
+                            title={isPassCopied ? "Copied to clipboard" : "Copy Password / Secret"}
+                          >
+                            {isPassCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-slate-600 font-mono text-xs">—</span>
                       )}
                     </div>
                   </td>
@@ -245,27 +255,29 @@ export default function TableView({
                   <td className="px-3 text-left whitespace-nowrap align-middle">
                     <div className="flex items-center justify-start gap-1.5">
                       {/* Copy Combo (url:user:pass or user:pass) */}
-                      <button
-                        onClick={() => {
-                          const combo = row.url && row.url !== 'N/A' 
-                            ? `${row.url}:${row.username}:${displaySecret}` 
-                            : `${row.username}:${displaySecret}`;
-                          handleCopy(combo, globalIdx, 'combo');
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
-                          isComboCopied
-                            ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald font-semibold'
-                            : 'bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border'
-                        }`}
-                        title={isComboCopied ? "Copied Combo to clipboard" : "Copy Combo format"}
-                      >
-                        {isComboCopied ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                        <span>{isComboCopied ? 'Copied' : 'Combo'}</span>
-                      </button>
+                      {row.username && row.username !== '—' && displaySecret ? (
+                        <button
+                          onClick={() => {
+                            const combo = row.url && row.url.startsWith('http') 
+                              ? `${row.url}:${row.username}:${displaySecret}` 
+                              : `${row.username}:${displaySecret}`;
+                            handleCopy(combo, globalIdx, 'combo');
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+                            isComboCopied
+                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 shadow-glow-emerald font-semibold'
+                              : 'bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-cyan-300 border border-cyber-border'
+                          }`}
+                          title={isComboCopied ? "Copied Combo to clipboard" : "Copy Combo format"}
+                        >
+                          {isComboCopied ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                          <span>{isComboCopied ? 'Copied' : 'Combo'}</span>
+                        </button>
+                      ) : null}
 
                       {/* Inspect Context */}
                       <button

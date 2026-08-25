@@ -12,7 +12,89 @@ function HighlightedRawLine({ raw, queryFilter }) {
     return <span className="text-slate-600 italic">&lt;empty line&gt;</span>;
   }
 
-  // 1. Key=Value format (e.g. JWT_BEARER_TOKEN=Bearer eyJ..., OPENAI_API_KEY=sk-..., STRIPE_KEY=sk_live_...)
+  // 1. Optional Country/Metadata Tag + URL:User:Pass (e.g. "FR https://site.com/path:user@email.com:pass")
+  const urlProtocolMatch = raw.match(/^(?:([A-Z]{2,3}|\[[^\]]+\])\s+)?(https?:\/\/[^\s|;,\t:]+(?::\d+)?(?:\/[^\s|;,\t]*)?)([\s:|;,\t]+)(.+)$/i);
+  if (urlProtocolMatch) {
+    const tag = urlProtocolMatch[1] ? urlProtocolMatch[1].replace(/[\[\]]/g, '').trim().toUpperCase() : '';
+    const url = urlProtocolMatch[2].trim();
+    const delim = urlProtocolMatch[3];
+    const rest = urlProtocolMatch[4];
+
+    let user = '';
+    let pass = '';
+    let innerDelim = ':';
+
+    const emailMatch = rest.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      const email = emailMatch[1];
+      const emailStart = rest.indexOf(email);
+      if (emailStart === 0) {
+        user = email;
+        pass = rest.slice(email.length).replace(/^[:|;,\t\s]+/, '');
+        innerDelim = rest.slice(email.length).match(/^[:|;,\t\s]+/)?.[0] || ':';
+      } else {
+        user = email;
+        pass = rest.slice(emailStart + email.length).replace(/^[:|;,\t\s]+/, '');
+        innerDelim = rest.slice(emailStart + email.length).match(/^[:|;,\t\s]+/)?.[0] || ':';
+      }
+    } else {
+      const delimMatch = rest.match(/[:|;,\t]+/);
+      if (delimMatch) {
+        innerDelim = delimMatch[0];
+        const delimIdx = rest.indexOf(innerDelim);
+        user = rest.slice(0, delimIdx);
+        pass = rest.slice(delimIdx + innerDelim.length);
+      } else {
+        user = rest;
+        pass = '';
+      }
+    }
+
+    return (
+      <span className="font-mono">
+        {tag && (
+          <span className="px-1.5 py-0.2 mr-1.5 text-[9px] font-bold rounded bg-cyan-950/90 text-cyan-300 border border-cyan-500/40 tracking-wider">
+            {tag}
+          </span>
+        )}
+        <span className="text-cyan-300 font-semibold hover:underline">{url}</span>
+        <span className="text-slate-600 mx-0.5">{delim}</span>
+        <span className="text-amber-300 font-medium">{user}</span>
+        {pass && (
+          <>
+            <span className="text-slate-600 mx-0.5">{innerDelim}</span>
+            <span className="text-violet-300 font-mono bg-violet-950/40 px-1 py-0.2 rounded border border-violet-500/20">{pass}</span>
+          </>
+        )}
+      </span>
+    );
+  }
+
+  // 2. Email-Anchored Combo without Protocol (e.g. "domain.com:user@gmail.com:pass" or "user@gmail.com:pass")
+  const emailMatch = raw.match(/^((?:[A-Z]{2,3}\s+|\[[^\]]+\]\s+)?[^\s:|;,\t]+[:|;,\t])?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})([:|;,\t])(.+)$/i);
+  if (emailMatch) {
+    const prefix = emailMatch[1] ? emailMatch[1].slice(0, -1) : '';
+    const delim1 = emailMatch[1] ? emailMatch[1].slice(-1) : '';
+    const email = emailMatch[2];
+    const delim2 = emailMatch[3];
+    const pass = emailMatch[4];
+
+    return (
+      <span className="font-mono">
+        {prefix && (
+          <>
+            <span className="text-cyan-300 font-semibold">{prefix}</span>
+            <span className="text-slate-600 mx-0.5">{delim1}</span>
+          </>
+        )}
+        <span className="text-amber-300 font-medium">{email}</span>
+        <span className="text-slate-600 mx-0.5">{delim2}</span>
+        <span className="text-violet-300 font-mono bg-violet-950/40 px-1 py-0.2 rounded border border-violet-500/20">{pass}</span>
+      </span>
+    );
+  }
+
+  // 3. Key=Value format (e.g. JWT_BEARER_TOKEN=Bearer eyJ..., OPENAI_API_KEY=sk-..., STRIPE_KEY=sk_live_...)
   const eqIndex = raw.indexOf('=');
   if (eqIndex > 0 && eqIndex < 40 && !raw.slice(0, eqIndex).includes(' ')) {
     const key = raw.slice(0, eqIndex);
@@ -54,25 +136,6 @@ function HighlightedRawLine({ raw, queryFilter }) {
         <span className="text-cyan-400 font-semibold">{key}</span>
         <span className="text-slate-600 font-bold mx-0.5">=</span>
         {formattedVal}
-      </span>
-    );
-  }
-
-  // 2. Standard URL:User:Pass or User:Pass
-  const parts = raw.split(':');
-  if (parts.length >= 3 && (parts[0].startsWith('http') || parts[0].includes('.'))) {
-    const url = parts.slice(0, parts[0].startsWith('http') ? 2 : 1).join(':');
-    const remaining = parts.slice(parts[0].startsWith('http') ? 2 : 1);
-    const user = remaining[0] || '';
-    const pass = remaining.slice(1).join(':') || '';
-
-    return (
-      <span className="font-mono">
-        <span className="text-cyan-300 font-semibold hover:underline">{url}</span>
-        <span className="text-slate-600 mx-0.5">:</span>
-        <span className="text-amber-300">{user}</span>
-        <span className="text-slate-600 mx-0.5">:</span>
-        <span className="text-violet-300 font-mono bg-violet-950/40 px-1 py-0.2 rounded border border-violet-500/20">{pass}</span>
       </span>
     );
   }

@@ -2,8 +2,9 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
-// Default base directory: ~/logs or ./logs fallback
-let BASE_LOG_DIR = path.resolve(process.env.LOGS_DIR || path.join(process.cwd(), '..', 'logs'));
+// Default base directory: process.env.LOGS_DIR or ./logs or ../logs fallback
+const defaultLogsDir = process.env.LOGS_DIR || (fs.existsSync(path.join(process.cwd(), 'logs')) ? path.join(process.cwd(), 'logs') : path.join(process.cwd(), '..', 'logs'));
+let BASE_LOG_DIR = path.resolve(defaultLogsDir);
 
 export function getBaseLogDir() {
   return BASE_LOG_DIR;

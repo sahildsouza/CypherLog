@@ -1,7 +1,7 @@
 /**
  * Intelligent Log & Credential Payload Parser
  * Automatically identifies, extracts, and standardizes credentials across all delimiter formats,
- * multi-line stealer blocks, key-value logs, JSON dumps, and token payloads without needing manual rules.
+ * multi-line stealer blocks, country-tagged combos, key-value logs, JSON dumps, and token payloads.
  */
 
 const COMMON_WEAK_PASSWORDS = new Set(['123456', 'password', '12345678', 'qwerty', '123456789', 'admin', 'pass123', 'root']);
@@ -10,7 +10,7 @@ const COMMON_WEAK_PASSWORDS = new Set(['123456', 'password', '12345678', 'qwerty
  * Calculate approximate Shannon entropy for password strength evaluation (High performance)
  */
 export function calculateEntropy(password) {
-  if (!password) return 0;
+  if (!password || typeof password !== 'string') return 0;
   const len = password.length;
   if (len === 0) return 0;
   
@@ -61,26 +61,49 @@ export function evaluatePasswordStrength(password) {
 }
 
 /**
- * Extract clean domain name from URL or host string with zero object allocation
+ * Extract clean domain name from URL or host string
  */
 export function extractDomain(urlOrHost) {
-  if (!urlOrHost) return 'Unknown';
+  if (!urlOrHost || typeof urlOrHost !== 'string') return 'Unknown';
   let host = urlOrHost.trim();
+  if (!host || host === 'N/A' || host === 'Log Entry' || host === 'Generic Auth' || host === 'Local/Direct Auth') {
+    return host || 'Unknown';
+  }
+
+  // Strip leading tags/country codes like "FR ", "[US] ", "192.168.1.1 " if present
+  host = host.replace(/^(?:[A-Z]{2,3}|\[[^\]]+\])\s+/i, '');
+
+  // Strip protocols
   const protoIdx = host.indexOf('://');
   if (protoIdx !== -1) {
     host = host.slice(protoIdx + 3);
+  } else if (host.startsWith('//')) {
+    host = host.slice(2);
   }
+
+  // Strip path
   const slashIdx = host.indexOf('/');
   if (slashIdx !== -1) {
     host = host.slice(0, slashIdx);
   }
+
+  // Strip query & hash
+  const qIdx = host.indexOf('?');
+  if (qIdx !== -1) host = host.slice(0, qIdx);
+  const hashIdx = host.indexOf('#');
+  if (hashIdx !== -1) host = host.slice(0, hashIdx);
+
+  // Strip port
   const colonIdx = host.indexOf(':');
   if (colonIdx !== -1) {
     host = host.slice(0, colonIdx);
   }
-  if (host.startsWith('www.')) {
+
+  // Strip www.
+  if (host.toLowerCase().startsWith('www.')) {
     host = host.slice(4);
   }
+
   return host || 'Unknown';
 }
 
@@ -88,21 +111,50 @@ export function extractDomain(urlOrHost) {
  * Checks if a string is a valid email
  */
 export function isEmail(str) {
-  if (!str) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
+  if (!str || typeof str !== 'string') return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(str.trim());
 }
 
 /**
  * Helper to test if a string looks like a web URL or domain
  */
 function isUrlOrHost(str) {
-  if (!str) return false;
-  const s = str.trim();
-  return /^https?:\/\//i.test(s) || /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?::\d+)?(?:\/.*)?$/i.test(s);
+  if (!str || typeof str !== 'string') return false;
+  let s = str.trim().replace(/^(?:[A-Z]{2,3}|\[[^\]]+\])\s+/i, '');
+  if (s.startsWith('//')) s = s.slice(2);
+  if (/^https?:\/\//i.test(s)) return true;
+  return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,24}(?::\d+)?(?:\/.*)?$/i.test(s);
 }
 
 /**
- * Parse a raw log line or snippet into a structured payload using smart auto-detection
+ * Detect server access logs, syslogs, and raw operational noise
+ */
+function isServerLogOrNoise(line) {
+  if (!line || typeof line !== 'string') return true;
+  const s = line.trim();
+  if (/\b(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+\/[^\s]*\s+HTTP\/\d\.\d/i.test(s)) return true;
+  if (/^\[\d{2}\/[A-Za-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2}/.test(s) || /\s+-\s+-\s+\[\d{2}\/[A-Za-z]{3}\/\d{4}/.test(s)) return true;
+  if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s*\[(INFO|DEBUG|WARN|ERROR|FATAL|TRACE)\])?/i.test(s)) return true;
+  if (/^[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+[^\s]+\s+[^\s:]+\[\d+\]:/i.test(s)) return true;
+  return false;
+}
+
+/**
+ * Extract leading country code or metadata tag (e.g. "FR ", "IN ", "[US] ", "DE ")
+ */
+function extractLeadingTag(str) {
+  const match = str.match(/^(?:([A-Z]{2,3})|\[([A-Za-z0-9_-]+)\])\s+/);
+  if (match) {
+    return {
+      tag: (match[1] || match[2]).toUpperCase(),
+      remainder: str.slice(match[0].length).trim()
+    };
+  }
+  return { tag: '', remainder: str.trim() };
+}
+
+/**
+ * Parse a raw log line or snippet into a structured payload using smart multi-format auto-detection
  */
 export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
   if (!rawLine || typeof rawLine !== 'string') {
@@ -110,7 +162,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
   }
 
   const trimmed = rawLine.trim();
-  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) {
+  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//') || /^={3,}/.test(trimmed) || /^-{3,}/.test(trimmed)) {
     return null;
   }
 
@@ -128,8 +180,9 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
           type: token ? 'TOKEN_JSON' : 'CREDENTIAL_JSON',
           url: url || 'N/A',
           domain: url ? extractDomain(url) : (isEmail(username) ? username.split('@')[1] : 'JSON Dump'),
-          username: username || (isEmail(obj.email) ? obj.email : 'N/A'),
+          username: username || (isEmail(obj.email) ? obj.email : '—'),
           password: password || '',
+          country: '',
           token: token || '',
           isEmail: isEmail(username),
           strength: evaluatePasswordStrength(password),
@@ -153,6 +206,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
       domain: 'JWT Secret',
       username: 'Bearer Token',
       password: '',
+      country: '',
       token: jwtMatch[1],
       isEmail: false,
       strength: { level: 'Cryptographic', score: 4, color: 'violet', entropy: calculateEntropy(jwtMatch[1]) },
@@ -171,6 +225,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
       domain: 'API Credential',
       username: apiKeyMatch[0].split(/[:=]/)[0].trim(),
       password: '',
+      country: '',
       token: apiKeyMatch[1],
       isEmail: false,
       strength: { level: 'API Key', score: 3, color: 'cyan', entropy: calculateEntropy(apiKeyMatch[1]) },
@@ -181,7 +236,26 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
     };
   }
 
-  // 3. Key=Value / Stealer Multi-Key inline formats (e.g. "URL: ... USER: ... PASS: ..." or "user=admin pass=123 url=site")
+  // 3. Early check for pure server access logs / syslog noise
+  if (isServerLogOrNoise(trimmed)) {
+    return {
+      type: 'RAW_LOG_ENTRY',
+      url: 'Log Entry',
+      domain: 'Server / System',
+      username: '—',
+      password: '',
+      country: '',
+      token: '',
+      isEmail: false,
+      strength: { level: 'None', score: 0, color: 'gray' },
+      raw: rawLine,
+      lineNumber,
+      filePath,
+      metadata: { format: 'System / Access Log' }
+    };
+  }
+
+  // 4. Key=Value / Stealer Multi-Key inline formats (e.g. "URL: ... USER: ... PASS: ...")
   const inlineStealerMatch = trimmed.match(/(?:URL|Host|Site|Domain):\s*([^\s|;]+).*?(?:USER|Username|Login|Email|Account):\s*([^\s|;]+).*?(?:PASS|Password|Pwd|Passwd):\s*([^\s|;]+)/i);
   if (inlineStealerMatch) {
     const url = inlineStealerMatch[1].trim();
@@ -193,6 +267,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
       domain: extractDomain(url),
       username: user,
       password: pass,
+      country: '',
       token: '',
       isEmail: isEmail(user),
       strength: evaluatePasswordStrength(pass),
@@ -203,49 +278,147 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
     };
   }
 
-  // 4. Fast Path: Standard Colon Combo with Protocol (https://site.com:user:pass or http://site.com:8080:user:pass)
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    const protoEnd = trimmed.indexOf('://') + 3;
-    const firstColon = trimmed.indexOf(':', protoEnd);
-    if (firstColon !== -1) {
-      const secondColon = trimmed.indexOf(':', firstColon + 1);
-      if (secondColon !== -1) {
-        const url = trimmed.slice(0, firstColon).trim();
-        const user = trimmed.slice(firstColon + 1, secondColon).trim();
-        const pass = trimmed.slice(secondColon + 1).trim();
-        return {
-          type: 'URL_USER_PASS',
-          url,
-          domain: extractDomain(url),
-          username: user,
-          password: pass,
-          token: '',
-          isEmail: isEmail(user),
-          strength: evaluatePasswordStrength(pass),
-          raw: rawLine,
-          lineNumber,
-          filePath,
-          metadata: { format: 'URL:User:Pass' }
-        };
+  // 5. Primary URL-Protocol Match with Optional Country/Region Tag
+  // Handles: "FR https://www.site.com/path:user@email.com:pass"
+  // Handles: "https://site.com:8080/path:user:pass:with:colons"
+  // Handles: "[US] https://site.com|user|pass"
+  const urlProtocolMatch = trimmed.match(/^(?:([A-Z]{2,3}|\[[^\]]+\])\s+)?(https?:\/\/[^\s|;,\t:]+(?::\d+)?(?:\/[^\s|;,\t]*)?)([\s:|;,\t]+)(.+)$/i);
+  if (urlProtocolMatch) {
+    const rawTag = urlProtocolMatch[1] ? urlProtocolMatch[1].replace(/[\[\]]/g, '').trim().toUpperCase() : '';
+    const url = urlProtocolMatch[2].trim();
+    const rest = urlProtocolMatch[4].trim();
+
+    let user = '';
+    let pass = '';
+
+    // Check if rest contains an email address to use as exact anchor
+    const emailMatch = rest.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      const email = emailMatch[1];
+      const emailStart = rest.indexOf(email);
+      if (emailStart === 0) {
+        user = email;
+        pass = rest.slice(email.length).replace(/^[:|;,\t\s]+/, '').trim();
+      } else {
+        user = email;
+        pass = rest.slice(emailStart + email.length).replace(/^[:|;,\t\s]+/, '').trim();
       }
+    } else {
+      // Split on first delimiter in rest
+      const delimMatch = rest.match(/[:|;,\t]+/);
+      if (delimMatch) {
+        const delim = delimMatch[0];
+        const delimIdx = rest.indexOf(delim);
+        user = rest.slice(0, delimIdx).trim();
+        pass = rest.slice(delimIdx + delim.length).trim();
+      } else if (rest.includes(' ')) {
+        const spaceParts = rest.split(/\s+/);
+        user = spaceParts[0];
+        pass = spaceParts.slice(1).join(' ');
+      } else {
+        user = rest;
+        pass = '';
+      }
+    }
+
+    if (user || pass) {
+      return {
+        type: 'URL_USER_PASS',
+        url,
+        domain: extractDomain(url),
+        username: user || '—',
+        password: pass || '',
+        country: rawTag,
+        token: '',
+        isEmail: isEmail(user),
+        strength: evaluatePasswordStrength(pass),
+        raw: rawLine,
+        lineNumber,
+        filePath,
+        metadata: { 
+          format: rawTag ? `Tagged (${rawTag}) URL:User:Pass` : 'URL:User:Pass',
+          country: rawTag
+        }
+      };
     }
   }
 
-  // 5. Universal Smart Delimiter Detector (Handles Pipe '|', Semicolon ';', Tab '\t', Comma ',', Colon ':')
-  const delimiters = ['|', ';', '\t', ',', ':'];
-  for (const delim of delimiters) {
-    if (!trimmed.includes(delim)) continue;
+  // 6. Email-Anchored Combo Dumps (when there is no explicit https:// protocol)
+  // Handles: "FR domain.com:user@gmail.com:password"
+  // Handles: "resume-now.com:user@gmail.com:password"
+  // Handles: "user@gmail.com:password:https://site.com"
+  // Handles: "user@gmail.com:password"
+  const emailMatch = trimmed.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  if (emailMatch) {
+    const email = emailMatch[1];
+    const emailIdx = trimmed.indexOf(email);
+    const beforeRaw = trimmed.slice(0, emailIdx).replace(/[:|;,\t\s]+$/, '').trim();
+    const afterRaw = trimmed.slice(emailIdx + email.length).replace(/^[:|;,\t\s]+/, '').trim();
 
-    const parts = trimmed.split(delim).map(p => p.trim()).filter(Boolean);
+    const { tag, remainder: before } = extractLeadingTag(beforeRaw);
+
+    let url = '';
+    let user = email;
+    let pass = '';
+
+    if (before && isUrlOrHost(before)) {
+      // Format: [Tag] Domain.com : User@email.com : Password
+      url = before.startsWith('http') ? before : `https://${before}`;
+      pass = afterRaw;
+    } else if (afterRaw) {
+      // Check if afterRaw has a trailing URL/domain: "password:https://site.com" or "password:site.com"
+      const trailingUrlMatch = afterRaw.match(/^(.*?)(?:[:|;,\t\s]+)(https?:\/\/[^\s|;,\t:]+(?::\d+)?(?:\/[^\s|;,\t]*)?|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,24}(?::\d+)?(?:\/[^\s|;,\t]*)?)$/i);
+      if (trailingUrlMatch) {
+        pass = trailingUrlMatch[1].trim();
+        const trailingHost = trailingUrlMatch[2].trim();
+        url = trailingHost.startsWith('http') ? trailingHost : `https://${trailingHost}`;
+      } else {
+        // Format: User@email.com : Password
+        url = `https://${email.split('@')[1]}`;
+        pass = afterRaw;
+      }
+    } else if (before) {
+      pass = before;
+      url = `https://${email.split('@')[1]}`;
+    }
+
+    if (user && (pass || url)) {
+      return {
+        type: 'EMAIL_ANCHORED_COMBO',
+        url: url || `https://${email.split('@')[1]}`,
+        domain: url ? extractDomain(url) : email.split('@')[1],
+        username: user,
+        password: pass || '',
+        country: tag,
+        token: '',
+        isEmail: true,
+        strength: evaluatePasswordStrength(pass),
+        raw: rawLine,
+        lineNumber,
+        filePath,
+        metadata: { 
+          format: tag ? `Tagged (${tag}) Email Combo` : 'Email:Pass Combo',
+          country: tag
+        }
+      };
+    }
+  }
+
+  // 7. Universal Smart Delimiter Detector (Handles Pipe '|', Semicolon ';', Tab '\t', Comma ',', Colon ':')
+  const { tag: leadingTag, remainder: cleanLine } = extractLeadingTag(trimmed);
+  const delimiters = [':::', '::', '|', ';', '\t', ',', ':'];
+
+  for (const delim of delimiters) {
+    if (!cleanLine.includes(delim)) continue;
+
+    const parts = cleanLine.split(delim).map(p => p.trim()).filter(Boolean);
     if (parts.length < 2) continue;
 
-    // Detect if this split represents valid credentials
     let detectedUrl = '';
     let detectedUser = '';
     let detectedPass = '';
 
     if (parts.length >= 3) {
-      // 3+ Parts: Determine positions of URL, User, Pass
       if (isUrlOrHost(parts[0])) {
         // Format: URL <delim> User <delim> Pass
         detectedUrl = parts[0];
@@ -257,22 +430,10 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
         detectedPass = parts.slice(1, parts.length - 1).join(delim);
         detectedUrl = parts[parts.length - 1];
       } else {
-        // Default position: Part0 = User/URL, Part1 = User/Pass, Part2 = Pass
-        if (isEmail(parts[0]) || isEmail(parts[1])) {
-          if (isEmail(parts[0])) {
-            detectedUser = parts[0];
-            detectedPass = parts[1];
-            detectedUrl = parts.slice(2).join(delim);
-          } else {
-            detectedUrl = parts[0];
-            detectedUser = parts[1];
-            detectedPass = parts.slice(2).join(delim);
-          }
-        } else {
-          detectedUrl = parts[0];
-          detectedUser = parts[1];
-          detectedPass = parts.slice(2).join(delim);
-        }
+        // Position Part 0: User/URL, Part 1: Pass/User, Part 2: Pass
+        detectedUrl = isUrlOrHost(parts[0]) ? parts[0] : '';
+        detectedUser = parts[detectedUrl ? 1 : 0];
+        detectedPass = parts.slice(detectedUrl ? 2 : 1).join(delim);
       }
 
       if (detectedUser || detectedPass) {
@@ -283,25 +444,29 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
 
         return {
           type: 'DELIMITED_COMBO',
-          url: detectedUrl || 'N/A',
+          url: detectedUrl || (domain !== 'Delimited' && domain !== 'Unknown' ? `https://${domain}` : 'N/A'),
           domain,
-          username: detectedUser || 'N/A',
+          username: detectedUser || '—',
           password: detectedPass || '',
+          country: leadingTag,
           token: '',
           isEmail: isEmail(detectedUser),
           strength: evaluatePasswordStrength(detectedPass),
           raw: rawLine,
           lineNumber,
           filePath,
-          metadata: { format: `Delimited (${delim === '\t' ? 'TAB' : delim})` }
+          metadata: { 
+            format: leadingTag ? `Tagged (${leadingTag}) Delimited (${delim === '\t' ? 'TAB' : delim})` : `Delimited (${delim === '\t' ? 'TAB' : delim})`,
+            country: leadingTag
+          }
         };
       }
     } else if (parts.length === 2 && delim !== ',') {
-      // 2 Parts (e.g. user:pass, user|pass, user;pass, email:password)
+      // 2 Parts: user:pass, user|pass, user;pass
       const user = parts[0];
       const pass = parts[1];
 
-      if (user && pass && !user.includes(' ') && user.length < 100) {
+      if (user && pass && !user.includes(' ') && user.length < 120) {
         let domain = 'Generic Auth';
         if (isEmail(user)) {
           domain = user.split('@')[1];
@@ -313,21 +478,25 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
           domain,
           username: user,
           password: pass,
+          country: leadingTag,
           token: '',
           isEmail: isEmail(user),
           strength: evaluatePasswordStrength(pass),
           raw: rawLine,
           lineNumber,
           filePath,
-          metadata: { format: `User${delim}Pass` }
+          metadata: { 
+            format: leadingTag ? `Tagged (${leadingTag}) User${delim}Pass` : `User${delim}Pass`,
+            country: leadingTag
+          }
         };
       }
     }
   }
 
-  // 6. Space-Separated Combos (e.g. "admin@gmail.com SuperPassword123" or "admin@gmail.com pass https://target.com")
-  if (trimmed.includes(' ')) {
-    const spaceParts = trimmed.split(/\s+/);
+  // 8. Space-Separated Combos (e.g. "admin@gmail.com SuperPassword123" or "site.com admin@gmail.com pass")
+  if (cleanLine.includes(' ')) {
+    const spaceParts = cleanLine.split(/\s+/);
     if (spaceParts.length === 2 && isEmail(spaceParts[0])) {
       const user = spaceParts[0];
       const pass = spaceParts[1];
@@ -338,6 +507,7 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
         domain,
         username: user,
         password: pass,
+        country: leadingTag,
         token: '',
         isEmail: true,
         strength: evaluatePasswordStrength(pass),
@@ -361,10 +531,11 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
         const domain = url !== 'N/A' ? extractDomain(url) : (isEmail(user) ? user.split('@')[1] : 'Space Combo');
         return {
           type: 'SPACE_COMBO',
-          url,
+          url: url !== 'N/A' ? url : (domain !== 'Space Combo' ? `https://${domain}` : 'N/A'),
           domain,
-          username: user || 'N/A',
+          username: user || '—',
           password: pass || '',
+          country: leadingTag,
           token: '',
           isEmail: isEmail(user),
           strength: evaluatePasswordStrength(pass),
@@ -377,13 +548,14 @@ export function parseLogLine(rawLine, lineNumber = 1, filePath = '') {
     }
   }
 
-  // 7. General Log Line fallback (e.g. Syslog, Access Log, keyword match)
+  // 9. General Log Line fallback (e.g. Syslog, Access Log, keyword match)
   return {
     type: 'RAW_LOG_ENTRY',
     url: 'Log Entry',
     domain: 'Server / System',
-    username: 'N/A',
+    username: '—',
     password: '',
+    country: '',
     token: '',
     isEmail: false,
     strength: { level: 'None', score: 0, color: 'gray' },
@@ -455,7 +627,7 @@ export function parseMultiLineStealerBlocks(rawText, filePath = '') {
 
 function finalizeBlock(block, filePath) {
   const url = block.url || 'N/A';
-  const username = block.username || 'N/A';
+  const username = block.username || '—';
   const password = block.password || '';
   return {
     type: 'STEALER_MULTILINE',
@@ -463,6 +635,7 @@ function finalizeBlock(block, filePath) {
     domain: extractDomain(url),
     username,
     password,
+    country: '',
     token: '',
     isEmail: isEmail(username),
     strength: evaluatePasswordStrength(password),
