@@ -124,9 +124,43 @@ export default function AnalyticsView({
     );
   }
 
-  const { topDomains = [], fileDistribution = [] } = analytics;
-  const maxDomainCount = Math.max(...topDomains.map(d => d.count), 1);
-  const maxFileCount = Math.max(...fileDistribution.map(f => f.count), 1);
+  const safeAnalytics = analytics || {};
+  
+  // Extract or dynamically derive top domains and file distribution from results
+  const topDomains = useMemo(() => {
+    if (Array.isArray(safeAnalytics.topDomains) && safeAnalytics.topDomains.length > 0) {
+      return safeAnalytics.topDomains;
+    }
+    // Fallback: derive from active results
+    const counts = {};
+    for (const r of results) {
+      const d = r.domain || 'Other';
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([domain, count]) => ({ domain, count }));
+  }, [safeAnalytics.topDomains, results]);
+
+  const fileDistribution = useMemo(() => {
+    if (Array.isArray(safeAnalytics.fileDistribution) && safeAnalytics.fileDistribution.length > 0) {
+      return safeAnalytics.fileDistribution;
+    }
+    // Fallback: derive from active results
+    const counts = {};
+    for (const r of results) {
+      const f = r.filePath || 'logs.txt';
+      counts[f] = (counts[f] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([file, count]) => ({ file, count }));
+  }, [safeAnalytics.fileDistribution, results]);
+
+  const maxDomainCount = topDomains.length > 0 ? Math.max(...topDomains.map(d => d.count || 0), 1) : 1;
+  const maxFileCount = fileDistribution.length > 0 ? Math.max(...fileDistribution.map(f => f.count || 0), 1) : 1;
   const totalMatches = results.length;
 
   return (
