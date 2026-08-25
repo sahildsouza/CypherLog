@@ -52,10 +52,10 @@ export default function ViewModeTabs({
   }, [setActiveTab]);
 
   return (
-    <div className="px-2 sm:px-4 py-1.5 border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md flex items-center justify-between gap-1 sm:gap-2 w-full overflow-hidden flex-nowrap font-mono text-[10px] sm:text-xs select-none">
+    <div className="px-2.5 sm:px-4 py-1.5 border-b border-cyber-border bg-cyber-900/95 backdrop-blur-md flex items-center justify-between gap-2 w-full font-mono text-[10px] sm:text-xs select-none">
       
-      {/* Left: View Mode Tab Switchers (Compact on mobile) */}
-      <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+      {/* Left: View Mode Tab Switchers (Fills available space nicely on mobile) */}
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-1 max-w-[240px] sm:max-w-none">
         {tabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -63,7 +63,7 @@ export default function ViewModeTabs({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg font-medium transition-all text-[10px] sm:text-xs shrink-0 cursor-pointer ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-medium transition-all text-[10px] sm:text-xs flex-1 sm:flex-initial cursor-pointer ${
                 isActive
                   ? 'bg-cyber-800 text-cyan-300 border border-cyber-accent/40 shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-cyber-850 border border-transparent'
@@ -80,7 +80,7 @@ export default function ViewModeTabs({
         })}
       </div>
 
-      {/* Right: Search Execution Speed & Results Count Strip (Compact on mobile) */}
+      {/* Right: Search Execution Speed & Results Count Strip */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 text-[10px] sm:text-xs">
         {metrics ? (
           <>
@@ -93,22 +93,21 @@ export default function ViewModeTabs({
               <span>{formatExecutionTime(metrics.executionTimeMs)}</span>
             </div>
 
-            {/* Results Count */}
-            <div className="flex items-center gap-1 text-slate-300 shrink-0 whitespace-nowrap">
-              <span>
-                <strong className="text-cyan-300 font-bold">{totalResults.toLocaleString()}</strong> <span className="text-slate-400"><span className="sm:hidden">res</span><span className="hidden sm:inline">results</span></span>
-              </span>
+            {/* Results Count Pill */}
+            <div className="flex items-center gap-1 text-slate-300 shrink-0 whitespace-nowrap bg-cyber-850/80 px-2 py-0.5 sm:py-1 rounded-md border border-cyber-border/80 shadow-inner">
+              <strong className="text-cyan-300 font-bold">{totalResults.toLocaleString()}</strong>
+              <span className="text-slate-400 text-[9px] sm:text-[11px]"><span className="sm:hidden">res</span><span className="hidden sm:inline">results</span></span>
               {metrics.totalMatches !== undefined && metrics.totalMatches !== totalResults && (
                 <>
                   <span className="text-slate-600 hidden xs:inline">/</span>
-                  <span className="text-slate-400 hidden xs:inline">
+                  <span className="text-slate-400 hidden xs:inline text-[9px] sm:text-[11px]">
                     {metrics.totalMatches.toLocaleString()} raw
                   </span>
                 </>
               )}
             </div>
 
-            {/* Files Scanned & Throughput (Visible on larger screens) */}
+            {/* Files Scanned & Throughput (Desktop only) */}
             {metrics.filesScanned > 0 && (
               <div className="hidden lg:flex items-center gap-1.5 text-slate-400 text-[11px]">
                 <span className="text-slate-700">•</span>
@@ -125,7 +124,7 @@ export default function ViewModeTabs({
           </>
         ) : (
           totalResults > 0 && (
-            <div className="flex items-center gap-1 text-slate-300 shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-1 text-slate-300 shrink-0 whitespace-nowrap bg-cyber-850/80 px-2 py-0.5 sm:py-1 rounded-md border border-cyber-border/80">
               <strong className="text-cyan-300 font-bold">{totalResults.toLocaleString()}</strong>
               <span className="text-slate-400">items</span>
             </div>

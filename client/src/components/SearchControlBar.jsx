@@ -83,7 +83,7 @@ export default function SearchControlBar({
           <button
             onClick={() => onExecuteSearch()}
             disabled={isSearching}
-            className="flex items-center justify-center gap-1 sm:gap-1.5 px-3 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs sm:text-sm tracking-wide transition-all shadow-glow-cyan disabled:opacity-50 shrink-0 select-none cursor-pointer"
+            className="flex items-center justify-center gap-1 sm:gap-1.5 px-3.5 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs sm:text-sm tracking-wide transition-all shadow-glow-cyan disabled:opacity-50 shrink-0 select-none cursor-pointer"
           >
             {isSearching ? (
               <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
@@ -97,11 +97,11 @@ export default function SearchControlBar({
           </button>
         </div>
 
-        {/* Guaranteed Single-Line Control Strip for Mobile & Desktop (No Wrapping) */}
-        <div className="flex items-center justify-between gap-1 sm:gap-2 text-[10px] sm:text-xs font-mono w-full overflow-hidden flex-nowrap">
+        {/* Proportional Full-Width Control Strip (Properly Utilizes Space on Mobile & Desktop) */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-1.5 sm:gap-3 w-full font-mono text-[10px] sm:text-xs">
           
-          {/* Target Field Filter Selector */}
-          <div className="flex items-center gap-0.5 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border shrink-0">
+          {/* Target Field Filter: 4 Equal Grid Tabs on Mobile, Flex on Desktop */}
+          <div className="grid grid-cols-4 sm:flex items-center gap-0.5 bg-cyber-850 p-0.5 rounded-lg border border-cyber-border w-full sm:w-auto">
             {[
               { id: 'ALL', full: 'All Fields', short: 'All' },
               { id: 'URL', full: 'URL', short: 'URL' },
@@ -111,7 +111,7 @@ export default function SearchControlBar({
               <button
                 key={tab.id}
                 onClick={() => setTargetField(tab.id)}
-                className={`px-1.5 sm:px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-colors cursor-pointer shrink-0 ${
+                className={`py-1 px-1 sm:px-2.5 rounded text-[10px] sm:text-[11px] font-medium transition-colors cursor-pointer text-center flex items-center justify-center ${
                   targetField === tab.id
                     ? 'bg-cyber-700 text-cyan-300 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -123,13 +123,13 @@ export default function SearchControlBar({
             ))}
           </div>
 
-          {/* Right Action Buttons: Unique + Mask + Export in 1 Line */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Right Action Buttons: 3 Equal Grid Buttons on Mobile, Flex on Desktop */}
+          <div className="grid grid-cols-3 sm:flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
             {/* Deduplication Toggle Button */}
             <button
               onClick={() => setIsDeduplicated(!isDeduplicated)}
               title="Toggle deduplication to remove duplicate combos"
-              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-lg border text-[10px] sm:text-[11px] font-medium transition-all cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 py-1 px-1 sm:px-2.5 rounded-lg border text-[10px] sm:text-[11px] font-medium transition-all cursor-pointer ${
                 isDeduplicated
                   ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-200 shadow-glow-cyan'
                   : 'bg-cyber-850 hover:bg-cyber-800 border-cyber-border text-slate-400 hover:text-slate-200'
@@ -143,7 +143,7 @@ export default function SearchControlBar({
             <button
               onClick={() => setMaskPasswords(!maskPasswords)}
               title="Mask or unmask passwords across the interface"
-              className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-slate-100 transition-colors text-[10px] sm:text-[11px] cursor-pointer shrink-0"
+              className="flex items-center justify-center gap-1 sm:gap-1.5 py-1 px-1 sm:px-2.5 rounded-lg bg-cyber-850 hover:bg-cyber-800 border border-cyber-border text-slate-300 hover:text-slate-100 transition-colors text-[10px] sm:text-[11px] cursor-pointer"
             >
               {maskPasswords ? (
                 <>
@@ -162,7 +162,7 @@ export default function SearchControlBar({
             <button
               onClick={onOpenExport}
               title="Export search results to CSV / JSON / TXT"
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-glow-violet transition-all text-[10px] sm:text-[11px] cursor-pointer shrink-0"
+              className="flex items-center justify-center gap-1 sm:gap-1.5 py-1 px-1 sm:px-3 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-glow-violet transition-all text-[10px] sm:text-[11px] cursor-pointer"
             >
               <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Export</span>
